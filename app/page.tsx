@@ -2,7 +2,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import type { CaseItem, CaseStatus } from "./lib/types";
 import { historicalQuotes, marketSeries } from "./lib/marketData";
 import { buildMarketIndexSeries, detectAnomaly, matchSimilarQuotes, parseContainerType, parseRoute, toTransportMonth, verdictFromQuote, windowChangePct, type Verdict } from "./lib/quoteEngine";
@@ -16,7 +15,7 @@ import { buildContractClauses, SMGS_REFERENCE_ITEMS, type ContractClause } from 
 import { seasonalityForDate } from "./lib/seasonality";
 import { buildTaxInvoice } from "./lib/taxInvoiceEngine";
 import { answerDispute, type ChatMessage } from "./lib/disputeChatEngine";
-import { listCases, createCase as createSupabaseCase, updateCaseStatus, uploadCaseDocument, saveDocumentRecord, saveTaxInvoice, saveDisputeMessage, saveContract, isPermissionError, supabase } from "./lib/supabase";
+import { listCases, createCase as createSupabaseCase, updateCaseStatus, uploadCaseDocument, saveDocumentRecord, saveTaxInvoice, saveDisputeMessage, saveContract, isPermissionError } from "./lib/supabase";
 
 type SupabaseCaseRow = {
   id: string;
@@ -121,9 +120,6 @@ export default function Home() {
   const [navCollapsed,setNavCollapsed] = useState(false);
   const [cases,setCases] = useState<CaseItem[]>(initialCases);
   const [toast,setToast] = useState("");
-  const [authEmail,setAuthEmail] = useState<string | null>(null);
-  const [authName,setAuthName] = useState<string | null>(null);
-  const [authRole,setAuthRole] = useState<string | null>(null);
   // setCasesAndPersist(아래)가 Supabase에 쓰기 전에 "새로 추가된 항목"을 판단하려면 갱신 직전의
   // cases가 필요하다 — 클로저로 캡처하면 연속 갱신 시 오래된 값을 볼 수 있어 ref로 항상 최신값을 든다.
   const casesRef = useRef(cases);
@@ -160,17 +156,6 @@ export default function Home() {
     };
     document.addEventListener('change', onFileChange, true);
     return () => document.removeEventListener('change', onFileChange, true);
-  }, []);
-  useEffect(() => {
-    const loadProfile = async (userId: string | undefined, email: string | undefined) => {
-      setAuthEmail(email ?? null);
-      if (!userId) { setAuthName(null); setAuthRole(null); return; }
-      const { data } = await supabase.from('profiles').select('full_name, role').eq('id', userId).maybeSingle();
-      setAuthName(data?.full_name ?? null); setAuthRole(data?.role ?? null);
-    };
-    supabase.auth.getUser().then(({ data }) => loadProfile(data.user?.id, data.user?.email));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => loadProfile(session?.user.id, session?.user.email));
-    return () => listener.subscription.unsubscribe();
   }, []);
   useEffect(()=>{const f=()=>setPathState(location.pathname+location.search);f();addEventListener("popstate",f);return()=>removeEventListener("popstate",f)},[]);
   useEffect(()=>{const openReference=(event:MouseEvent)=>{const target=event.target as Element|null;const card=target?.closest('.causal-analysis') as HTMLElement|null;if(!card)return;const rect=card.getBoundingClientRect();if(event.clientX<rect.right-210||event.clientY>rect.top+62)return;const referenceTab=[...document.querySelectorAll<HTMLButtonElement>('.figma-case-detail .tabs button')].find(button=>button.textContent?.trim()==='참고정보');referenceTab?.click();window.scrollTo({top:0,behavior:'smooth'})};document.addEventListener('click',openReference);return()=>document.removeEventListener('click',openReference)},[]);
@@ -212,10 +197,10 @@ export default function Home() {
   const contractCount = cases.filter(c=>c.status==='계약').length;
   const documentCount = cases.filter(c=>c.status==='계약').length;
   const settlementCount = cases.filter(c=>c.status==='정산').length;
-  const displayName = authName ?? '사용자';
+  const displayName = '사용자';
   return <div className={`app${navCollapsed?' nav-collapsed':''}`}>
-    <Sidebar path={pathBase} go={go} needsAttention={needsAttention} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName} email={authEmail}/>
-    <div className="stage"><AuthStatus email={authEmail} name={authName} role={authRole}/><Topbar collapsed={navCollapsed} toggleNav={()=>setNavCollapsed(v=>!v)}/>
+    <Sidebar path={pathBase} go={go} needsAttention={needsAttention} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName}/>
+    <div className="stage"><Topbar collapsed={navCollapsed} toggleNav={()=>setNavCollapsed(v=>!v)}/>
       <main>
         {pathBase==="/" && <Dashboard cases={cases} go={go} displayName={displayName}/>}
         {pathBase==="/cases" && <CaseList cases={cases} go={go}/>}
@@ -233,7 +218,7 @@ export default function Home() {
 // 리서치(홈·검색)와 파이프라인(견적 생성 → 화물 운송 하위에 계약·문서·정산)으로 구분.
 // 계약·문서·정산은 화물 운송(Case)에 속한 뷰라 별도 상위 항목이 아니라 화물 운송의 아코디언
 // 하위로 둔다.
-function Sidebar({path,go,needsAttention,contractCount,documentCount,settlementCount,displayName,email}:{path:string;go:(p:string)=>void;needsAttention:number;contractCount:number;documentCount:number;settlementCount:number;displayName:string;email:string|null}){
+function Sidebar({path,go,needsAttention,contractCount,documentCount,settlementCount,displayName}:{path:string;go:(p:string)=>void;needsAttention:number;contractCount:number;documentCount:number;settlementCount:number;displayName:string}){
  const shipmentActive = path.startsWith('/cases')||path==='/contracts'||path==='/documents'||path==='/settlements';
  // manualOpen이 null이면 현재 경로가 화물운송 계열인지에 따라 자동으로 펼침/접힘이 결정되고,
  // 사용자가 화살표를 눌러 한 번이라도 직접 토글하면 그 선택을 우선한다.
@@ -253,16 +238,7 @@ function Sidebar({path,go,needsAttention,contractCount,documentCount,settlementC
    </div>
    {open&&<div className="sidebar-sub">{subItems.map(([p,l,c])=><button key={p} className={path===p?'active':''} onClick={()=>go(p)}>{l}{c>0&&<em>{c}</em>}</button>)}</div>}
   </div>
- </nav><div className="side-bottom"><button><Icon name="settings"/>설정</button><div className="profile"><span>{displayName.slice(0,1)}</span><div><b>{displayName}</b><small>{email ?? '로그인 >'}</small></div></div></div></aside>
-}
-
-// Sidebar 프로필은 "지금 화면에 있는 사람"을, AuthStatus는 "로그인 상태 자체"(로그인/로그아웃
-// 액션 포함)를 보여준다 — Topbar 위 얇은 바 형태로 항상 노출해 어느 화면에서든 로그아웃할 수 있게 한다.
-function AuthStatus({ email, name, role }: { email: string | null; name: string | null; role: string | null }) {
- const logout = async () => { await supabase.auth.signOut(); window.location.href = '/login'; };
- return <div className="auth-status">
-  {email ? <><span>{name ?? email}{role === 'admin' && ' · 관리자'}</span><button type="button" onClick={logout}>로그아웃</button></> : <Link href="/login">로그인</Link>}
- </div>;
+ </nav><div className="side-bottom"><button><Icon name="settings"/>설정</button><div className="profile"><span>{displayName.slice(0,1)}</span><div><b>{displayName}</b></div></div></div></aside>
 }
 
 // 능동적 알림 우선 원칙(4장) — 상단 환율 배지도 목업이 아니라 실제 시계열의 최신값·전일 대비 변동을 그대로 노출한다.
