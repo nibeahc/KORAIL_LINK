@@ -34,7 +34,7 @@ type SupabaseCaseRow = {
 // 중량 등)는 metadata jsonb 컬럼에 넣어뒀다가 여기서 꺼내 쓴다.
 function fromSupabaseCase(row: SupabaseCaseRow): CaseItem {
   const metadata = row.metadata ?? {};
-  const statuses: CaseStatus[] = ["검증 대기", "검토 필요", "견적 확정", "계약", "정산"];
+  const statuses: CaseStatus[] = ["검증 대기", "검토 필요", "견적 확정", "계약", "문서", "정산"];
   const status = statuses.includes(row.status as CaseStatus) ? row.status as CaseStatus : "검증 대기";
   return {
     id: row.case_number,
@@ -70,10 +70,10 @@ const Icon = ({name}:{name:string}) => <span className="icon" aria-hidden>{({hom
 const NAV_ICON_SRC:Record<string,string>={home:"/icons/nav-home.svg",search:"/icons/nav-search.svg",case:"/icons/nav-shipment.svg"};
 const NavIcon=({name}:{name:'home'|'search'|'case'})=><img className={`nav-icon nav-icon-${name}`} src={NAV_ICON_SRC[name]} alt="" aria-hidden/>;
 const money = (n:number) => `$${n.toLocaleString()}`;
-const statusClass = (s:string) => s==='계약' ? "violet" : s.includes("검토") ? "amber" : s.includes("확인") ? "red" : s.includes("확정") ? "blue" : s.includes("정산") ? "green" : "neutral";
+const statusClass = (s:string) => s==='계약' ? "violet" : s==='문서' ? "blue" : s.includes("검토") ? "amber" : s.includes("확인") ? "red" : s.includes("확정") ? "blue" : s.includes("정산") ? "green" : "neutral";
 // Case 목록에서 화살표를 클릭하면 지금 그 Case가 멈춰있는 단계로 바로 들어가야지,
 // 항상 "견적 검증" 탭부터 보여주면 안 된다. 상태 → 탭 매핑을 한 곳에 모아둔다.
-const statusTab = (s:CaseStatus):string => s==='견적 확정'?'계약':s==='계약'?'문서':'견적 검증';
+const statusTab = (s:CaseStatus):string => s==='견적 확정'?'계약':s==='계약'||s==='문서'?'문서':s==='정산'?'정산':'견적 검증';
 const caseHref = (id:string,status:CaseStatus) => `/cases/${id}?tab=${encodeURIComponent(statusTab(status))}`;
 
 // Case 하나에 대한 검증 결과(유사 Case 매칭·판정·시황 이상탐지)를 한 번만 계산해
@@ -192,14 +192,17 @@ export default function Home() {
   const queryParams=new URLSearchParams(queryString);
   const initialTab=queryParams.get('tab')||undefined;
   const initialContractDraft=queryParams.get('contractDraft')==='1';
+  // Case 상세에서도 현재 열린 업무 탭을 사이드바 하위 메뉴에 함께 표시한다.
+  // 예: ?tab=문서로 진입하면 화물 운송뿐 아니라 하위의 "문서"도 활성 색상을 갖는다.
+  const sidebarPath=pathBase.startsWith('/cases/')?(initialTab==='계약'?'/contracts':initialTab==='문서'?'/documents':initialTab==='정산'?'/settlements':pathBase):pathBase;
   const selected = pathBase.startsWith("/cases/") && pathBase!=="/cases/new" ? cases.find(c=>c.id===decodeURIComponent(pathBase.split("/")[2])) || cases[0] : cases[0];
   const needsAttention = cases.filter(c=>c.status==='검토 필요').length;
   const contractCount = cases.filter(c=>c.status==='계약').length;
-  const documentCount = cases.filter(c=>c.status==='계약').length;
+  const documentCount = cases.filter(c=>c.status==='문서').length;
   const settlementCount = cases.filter(c=>c.status==='정산').length;
   const displayName = '사용자';
   return <div className={`app${navCollapsed?' nav-collapsed':''}`}>
-    <Sidebar path={pathBase} go={go} needsAttention={needsAttention} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName}/>
+    <Sidebar path={sidebarPath} go={go} needsAttention={needsAttention} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName}/>
     <div className="stage"><Topbar collapsed={navCollapsed} toggleNav={()=>setNavCollapsed(v=>!v)}/>
       <main>
         {pathBase==="/" && <Dashboard cases={cases} go={go} displayName={displayName}/>}
@@ -279,25 +282,25 @@ const toneColor=(tone:string)=>tone==='green'?'#1f8a5b':tone==='amber'?'#d78516'
 // 오른쪽에 별도 구간으로 분리해 점으로 찍는다. 시계열(과거)과 스냅샷(오늘)을 같은 선 위에
 // 잇지 않도록 "오늘" 구간을 세로선으로 분리한 것이 포인트.
 function MarketIndexChart({monthly,todayPoints}:{monthly:{month:string;avgZ:number}[];todayPoints:{id:string;z:number;tone:string}[]}){
- const W=560,H=150,pad=14;
+ const W=935,H=242,labelY=278,pad=14;
  const allZ=[...monthly.map(m=>m.avgZ),...todayPoints.map(p=>p.z),1,-1];
  const maxAbs=Math.max(...allZ.map(Math.abs),1.5);
  const y=(z:number)=>H/2-(z/maxAbs)*(H/2-pad);
  const histW=W*0.6,todayW=W-histW-24;
- const xOf=(i:number)=>monthly.length>1?(i/(monthly.length-1))*(histW-20)+10:histW/2;
+ const xOf=(i:number)=>monthly.length>1?(i/(monthly.length-1))*(histW-34)+17:histW/2;
  const linePts=monthly.map((m,i)=>`${xOf(i).toFixed(1)},${y(m.avgZ).toFixed(1)}`).join(' ');
  const areaPts=monthly.length?`${xOf(0).toFixed(1)},${y(0).toFixed(1)} ${linePts} ${xOf(monthly.length-1).toFixed(1)},${y(0).toFixed(1)}`:'';
- const todayX=(i:number)=>histW+24+(todayPoints.length>1?(i/(todayPoints.length-1))*(todayW-20):todayW/2);
- return <svg viewBox={`0 0 ${W} ${H+18}`} className="index-chart">
+ const todayX=(i:number)=>histW+34+(todayPoints.length>1?(i/(todayPoints.length-1))*(todayW-50):todayW/2);
+ return <svg viewBox={`0 0 ${W} 281`} className="index-chart" aria-label="KORAIL LINK 종합 지수 추이">
   <rect x={0} y={y(1)} width={W} height={Math.max(y(-1)-y(1),1)} fill="#eef4fd" opacity={0.6}/>
   <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="#dde3ea" strokeDasharray="3 3"/>
   <line x1={histW+10} x2={histW+10} y1={pad} y2={H-pad} stroke="#e5eaf1"/>
   {monthly.length>0&&<polygon points={areaPts} fill="#c7d9f5" opacity={0.5}/>}
-  {monthly.length>0&&<polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={2}/>}
-  {monthly.map((m,i)=><circle key={m.month} cx={xOf(i)} cy={y(m.avgZ)} r={3} fill="#2c4870"/>)}
-  {todayPoints.map((p,i)=><circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={4.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={1.5}/>)}
-  {monthly.map((m,i)=><text key={m.month} x={xOf(i)} y={H+13} textAnchor="middle" className="index-x-label">{Number(m.month.slice(5))}월</text>)}
-  <text x={histW+24+todayW/2} y={H+13} textAnchor="middle" className="index-x-label index-today-label">오늘</text>
+  {monthly.length>0&&<polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={3}/>} 
+  {monthly.map((m,i)=><circle key={m.month} cx={xOf(i)} cy={y(m.avgZ)} r={5} fill="#2c4870"/>)}
+  {todayPoints.map((p,i)=><circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={7.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={2.5}/>)}
+  {monthly.map((m,i)=><text key={m.month} x={xOf(i)} y={labelY} textAnchor="middle" className="index-x-label">{Number(m.month.slice(5))}월</text>)}
+  <text x={histW+24+todayW/2} y={labelY} textAnchor="middle" className="index-x-label index-today-label">오늘</text>
  </svg>
 }
 
@@ -324,9 +327,9 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
    {label:'BRENT',indicator:'brent',value:`$${(brent?.latestValue??0).toFixed(2)}`,pct:pctLabel(brent?.changePct??0),trend:(brent?.changePct??0)>=0?'up':'down',series:marketSeries.brent},
  ];
  const needsAttention=cases.filter(c=>c.status==='검토 필요').length;
- const processed=cases.filter(c=>c.status==='견적 확정'||c.status==='계약'||c.status==='정산').length;
+ const processed=cases.filter(c=>c.status==='견적 확정'||c.status==='계약'||c.status==='문서'||c.status==='정산').length;
  const contractPending=cases.filter(c=>c.status==='계약').length;
- const documentCount=cases.filter(c=>c.status==='계약').length;
+ const documentCount=cases.filter(c=>c.status==='문서').length;
  const settlementPending=cases.filter(c=>c.status==='정산').length;
  // 세 개 섹션(브리핑 리스트/오늘의 업무/진행 중인 견적)이 모두 Case별 σ 판정 결과가 필요하므로
  // buildValidation을 한 번씩만 호출해 재사용한다.
@@ -338,7 +341,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
  const directCount=cases.length-tcrCount;
  const parseDate=(s:string)=>new Date(s.replace(/\./g,'-'));
  const avgLeadDays=cases.length?Math.round(cases.reduce((sum,c)=>sum+(parseDate(c.departure).getTime()-parseDate(c.date).getTime())/86400000,0)/cases.length):0;
- const statusOrder:{status:CaseStatus;color:string}[]=[{status:'검증 대기',color:'#8b95a4'},{status:'검토 필요',color:'#bd7217'},{status:'견적 확정',color:'#2865ba'},{status:'계약',color:'#6a4fb0'},{status:'정산',color:'#207c56'}];
+ const statusOrder:{status:CaseStatus;color:string}[]=[{status:'검증 대기',color:'#8b95a4'},{status:'검토 필요',color:'#bd7217'},{status:'견적 확정',color:'#2865ba'},{status:'계약',color:'#6a4fb0'},{status:'문서',color:'#2865ba'},{status:'정산',color:'#207c56'}];
  const statusSegments=statusOrder.map(s=>({label:s.status,value:cases.filter(c=>c.status===s.status).length,color:s.color}));
  // 노선·건수 합계처럼 Case를 그냥 더하거나 나열하는 방식은 표본이 5건뿐이라 의미 있는
  // 비교가 되지 않는다 — 대신 44건의 과거 견적을 노선·컨테이너 버킷별로 표준화(z-score)해
@@ -386,7 +389,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
   <div className="stat-mini"><span>평균 리드타임(등록→출발)</span><b>{avgLeadDays}<em>일</em></b></div>
  </div>
  <h2 className="dashboard-label spaced">KORAIL LINK 종합 지수</h2>
- <section className="card chart-card index-card"><MarketIndexChart monthly={marketIndex} todayPoints={todayPoints}/><div className="legend index-legend"><span><i className="legend-band"/>정상범위(±1σ)</span><span><i className="legend-dot" style={{background:'#1f8a5b'}}/>정상</span><span><i className="legend-dot" style={{background:'#d78516'}}/>다소 높음</span><span><i className="legend-dot" style={{background:'#d93d42'}}/>높음</span></div></section>
+ <section className="card chart-card index-card"><div className="legend index-legend"><span><i className="legend-band"/>정상범위(±1σ)</span><span><i className="legend-dot" style={{background:'#1f8a5b'}}/>정상</span><span><i className="legend-dot" style={{background:'#d78516'}}/>다소 높음</span><span><i className="legend-dot" style={{background:'#d93d42'}}/>높음</span></div><MarketIndexChart monthly={marketIndex} todayPoints={todayPoints}/></section>
  <section className="card active-work"><div className="card-head"><h2>진행 중인 업무</h2><button className="text-btn" onClick={()=>go('/cases')}>전체 업무 보기 <Icon name="arrow"/></button></div><div className="active-work-grid"><div className="work-donut"><DonutChart segments={statusSegments} size={132} thickness={22}/><div className="donut-legend">{statusSegments.filter(s=>s.value>0).map(s=><div className="donut-legend-row" key={s.label}><i style={{background:s.color}}/><span>{s.label}</span><b>{s.value}</b></div>)}</div></div><div className="work-table" aria-label={`진행 중인 업무 ${cases.length}건`}><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>견적</th><th>상태</th><th>등록일</th></tr></thead><tbody>{cases.map(c=><tr key={c.id} onClick={()=>go(caseHref(c.id,c.status))}><td>{c.id}</td><td><b>{c.shipper}</b><small>{c.item} · {c.container}</small></td><td>{c.route}</td><td><b>{money(c.price)}</b></td><td><Badge tone={statusClass(c.status)}>{c.status}</Badge></td><td>{c.date}</td></tr>)}</tbody></table></div></div></section>
  <section className="card briefing figma-briefing"><div className="card-head"><h2>오늘의 국제물류 브리핑</h2><button className="text-btn" onClick={()=>go('/search')}>전체 정보 보기 <Icon name="arrow"/></button></div>
   <div className="brief-list">
@@ -426,7 +429,7 @@ function HomeChatbot({item,close}:{item:CaseItem;close:()=>void}){
 const BRIEF_ICONS: Record<string,string> = {규제:'§',TCR:'⇄',지정학:'⚑',연운항:'⚓',FX:'₩',ENERGY:'◒'};
 function Brief({tone,cat,title,meta,onClick}:{tone:string;cat:string;title:string;meta:string;onClick?:()=>void}){return <button className="brief" onClick={onClick}><span className={`brief-icon ${tone}`}>{BRIEF_ICONS[cat] ?? '◒'}</span><div><Badge tone={tone}>{cat}</Badge><b>{title}</b><small>{meta}</small></div><Icon name="arrow"/></button>}
 
-function CaseList({cases,go}:{cases:CaseItem[];go:(p:string)=>void}){const [q,setQ]=useState('');const [filter,setFilter]=useState('전체');const filtered=cases.filter(c=>(filter==='전체'||c.status===filter)&&Object.values(c).join(' ').toLowerCase().includes(q.toLowerCase()));return <div className="page figma-case-list"><PageTitle eyebrow="SHIPMENT MANAGEMENT" title="화물 운송 건 목록" desc="화물 운송 건을 등록해 견적 검증부터 계약·정산까지 한 곳에서 관리하세요." action={<button className="primary case-create" onClick={()=>go('/cases/new')}><Icon name="plus"/> 신규 등록</button>}/><div className="filters"><label className="searchbox"><Icon name="search"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="화주, 노선, Case 번호 검색"/></label><div className="chips">{['전체','계약','검토 필요','견적 확정','검증 대기'].map(x=><button type="button" className={filter===x?'active':''} onClick={()=>setFilter(x)} key={x}>{x}</button>)}</div></div><div className="table-card card"><div className="table-summary"><b>전체 견적</b><span>{filtered.length}건</span><button type="button">등록일 순 <i aria-hidden>↕</i></button></div><div className="case-table-scroll"><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>견적</th><th>상태</th><th>등록일</th></tr></thead><tbody>{filtered.map(c=><tr key={c.id} onClick={()=>go(caseHref(c.id,c.status))}><td>{c.id}</td><td><b>{c.shipper}</b><small>{c.item}<br/>{c.container}</small></td><td>{c.route.split(' → ').map((part,i)=><span key={part}>{part}{i===0?' →':''}</span>)}</td><td><strong>{money(c.price)}</strong></td><td><Badge tone={statusClass(c.status)}>{c.status.replace(' ','')}</Badge></td><td>{c.date}</td></tr>)}</tbody></table></div>{!filtered.length&&<div className="empty"><span>⌕</span><b>검색 결과가 없습니다.</b><small>검색어나 필터를 다시 확인해주세요.</small></div>}</div><QuotePageChatbot/></div>}
+function CaseList({cases,go}:{cases:CaseItem[];go:(p:string)=>void}){const [q,setQ]=useState('');const [filter,setFilter]=useState('전체');const filtered=cases.filter(c=>(filter==='전체'||c.status===filter)&&Object.values(c).join(' ').toLowerCase().includes(q.toLowerCase()));return <div className="page figma-case-list"><PageTitle eyebrow="SHIPMENT MANAGEMENT" title="화물 운송 건 목록" desc="화물 운송 건을 등록해 견적 검증부터 계약·정산까지 한 곳에서 관리하세요." action={<button className="primary case-create" onClick={()=>go('/cases/new')}><Icon name="plus"/> 신규 등록</button>}/><div className="filters"><label className="searchbox"><Icon name="search"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="화주, 노선, Case 번호 검색"/></label><div className="chips">{['전체','계약','문서','검토 필요','견적 확정','검증 대기'].map(x=><button type="button" className={filter===x?'active':''} onClick={()=>setFilter(x)} key={x}>{x}</button>)}</div></div><div className="table-card card"><div className="table-summary"><b>전체 견적</b><span>{filtered.length}건</span><button type="button">등록일 순 <i aria-hidden>↕</i></button></div><div className="case-table-scroll"><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>견적</th><th>상태</th><th>등록일</th></tr></thead><tbody>{filtered.map(c=><tr key={c.id} onClick={()=>go(caseHref(c.id,c.status))}><td>{c.id}</td><td><b>{c.shipper}</b><small>{c.item}<br/>{c.container}</small></td><td>{c.route.split(' → ').map((part,i)=><span key={part}>{part}{i===0?' →':''}</span>)}</td><td><strong>{money(c.price)}</strong></td><td><Badge tone={statusClass(c.status)}>{c.status.replace(' ','')}</Badge></td><td>{c.date}</td></tr>)}</tbody></table></div>{!filtered.length&&<div className="empty"><span>⌕</span><b>검색 결과가 없습니다.</b><small>검색어나 필터를 다시 확인해주세요.</small></div>}</div><QuotePageChatbot/></div>}
 
 function NewCase({cases,setCases,go,notify}:{cases:CaseItem[];setCases:(x:CaseItem[])=>void;go:(p:string)=>void;notify:(m:string)=>void}){const [form,setForm]=useState({shipper:'ABC Motors',item:'자동차부품',from:'오봉역',to:'알마티',container:'40FT',qty:'3',weight:'58',departure:'2026-08-24',forwarder:'코레일',price:'3400',currency:'USD',received:'2026-08-10',valid:'7',memo:''});const change=(k:string,v:string)=>setForm({...form,[k]:v});const submit=(e:FormEvent)=>{e.preventDefault();const id=`KORAIL-2026-${String(cases.length+1).padStart(3,'0')}`;const n:CaseItem={id,shipper:form.shipper,route:`${form.from.replace('역','')} → ${form.to}`,item:form.item,container:`${form.container} × ${form.qty}`,forwarder:form.forwarder,price:+form.price,status:'검토 필요',date:'2026.08.10',departure:form.departure,weight:+form.weight};setCases([n,...cases]);notify('화물 운송 건이 등록되고 AI 검증이 완료되었습니다.');go('/cases/'+id)};return <div className="page form-page"><button className="back" onClick={()=>go('/cases')}>← 화물 운송으로</button><PageTitle eyebrow="NEW SHIPMENT" title="화물 운송 건 등록" desc="화물 운송에 필요한 기본 정보와 포워더 견적을 함께 입력해주세요."/><form onSubmit={submit}><FormSection n="01" title="기본 운송정보" desc="화물 및 운송 구간을 입력하세요."><div className="form-grid"><Field label="화주명" value={form.shipper} set={v=>change('shipper',v)}/><Field label="품목" value={form.item} set={v=>change('item',v)}/><Field label="출발지" value={form.from} set={v=>change('from',v)}/><Field label="도착지" value={form.to} set={v=>change('to',v)}/><Select label="컨테이너 타입" value={form.container} set={v=>change('container',v)} opts={['40FT','20FT','40FT HC']}/><Field label="컨테이너 수량" value={form.qty} set={v=>change('qty',v)} type="number" suffix="대"/><Field label="총 중량" value={form.weight} set={v=>change('weight',v)} type="number" suffix="ton"/><Field label="출발 예정일" value={form.departure} set={v=>change('departure',v)} type="date"/></div></FormSection><FormSection n="02" title="포워더 견적" desc="수신한 견적서의 주요 내용을 입력하세요."><QuoteAutoFill form={form} change={change}/><div className="form-grid"><Field label="포워더명" value={form.forwarder} set={v=>change('forwarder',v)}/><div className="compound"><Field label="견적금액" value={form.price} set={v=>change('price',v)} type="number"/><Select label="통화" value={form.currency} set={v=>change('currency',v)} opts={['USD','KRW','CNY']}/></div><Field label="견적 수신일" value={form.received} set={v=>change('received',v)} type="date"/><Field label="견적 유효기간" value={form.valid} set={v=>change('valid',v)} type="number" suffix="일"/><label className="field full"><span>메모 <small>선택</small></span><textarea value={form.memo} onChange={e=>change('memo',e.target.value)} placeholder="포워더 전달사항이나 특이사항을 입력하세요."/></label></div></FormSection><div className="form-actions"><span><Icon name="info"/> 등록 즉시 내부 유사 견적 및 시장정보 분석이 시작됩니다.</span><div><button type="button" className="secondary" onClick={()=>go('/cases')}>취소</button><button className="primary" type="submit"><Icon name="spark"/> 화물 운송 건 등록 및 AI 검증 시작</button></div></div></form></div>}
 // 견적서 자동생성(신규) — "포워더 견적" 수동 입력 위에 얹는 보조 도구. 코레일은 경쟁하는
@@ -537,9 +540,13 @@ const uploadDoc=(type:DocumentType,fileName:string)=>{
  setTimeout(()=>{setDocs(d=>({...d,[type]:{status:'done',fileName}}));notify(`${type} 문서에서 정보를 추출했습니다.`)},900);
 };// 3장 두 축(① 운임 인텔리전스 / ② Single Data Entry+업무 연결)을 탭바에서도 시각적으로 구분한다.
 const tabGroups:[string|null,string[]][]=[[null,['개요']],['운임 인텔리전스',['견적 검증','참고정보']],['업무 연결',['계약','문서','정산']]];
+useEffect(()=>{const next=`/cases/${encodeURIComponent(item.id)}?tab=${encodeURIComponent(tab)}`;if(location.pathname+location.search!==next){history.replaceState({},'',next);dispatchEvent(new PopStateEvent('popstate'))}},[tab,item.id]);
 useEffect(()=>{const locked=item.status==='검증 대기'||item.status==='검토 필요';document.querySelectorAll<HTMLButtonElement>('.figma-case-detail .tabs button').forEach(button=>{const name=button.textContent?.trim();button.disabled=locked&&(quoteDeferred?['정산']:['계약','문서','정산']).includes(name??'')})},[item.status,tab,quoteDeferred]);
+// 계약 체결 직후 문서 탭으로 이동하면 해당 운송 건의 현재 단계도 "문서"로 전환한다.
+// 이전 버전에서 계약 상태로 저장된 건도 문서 화면을 여는 순간 동일하게 보정한다.
+useEffect(()=>{if(tab==='문서'&&item.status==='계약')setCases(xs=>xs.map(x=>x.id===item.id?{...x,status:'문서'}:x))},[tab,item.id,item.status,setCases]);
 const validation=useMemo(()=>buildValidation(item),[item]);const confirm=()=>{setCases(xs=>xs.map(x=>x.id===item.id?{...x,status:'견적 확정'}:x));setModal(false);setTab('계약');notify('견적이 확정되었습니다. 계약 특약을 검토해주세요.')};const deferQuote=()=>{setQuoteDeferred(true);setTab('계약');notify('견적 검토를 미뤘습니다. 견적 상태를 유지한 채 계약서 초안과 문서를 먼저 작성할 수 있습니다.')};const confirmContract=()=>{setCases(xs=>xs.map(x=>x.id===item.id?{...x,status:'계약'}:x));notify('계약이 체결되었습니다. 이제 문서를 업로드해 데이터를 채워보세요.');setTab('문서')};return <div className="case-workspace figma-case-detail"><section className="case-hero"><div className="case-breadcrumb">화물 운송 <span>/</span> {item.id}</div><div className="case-heading"><div><div><Badge tone={statusClass(item.status)}>{item.status}</Badge><span className="case-id">{item.id}</span></div><h1>{item.route}</h1><p>{item.shipper} · {item.item} · {item.container}</p></div><div className="quote"><span>현재 포워더 견적</span><b>{money(item.price)}</b><small>{item.forwarder} · USD</small></div></div><Stepper status={item.status}/></section><div className="tabs">{tabGroups.map(([label,group],gi)=><div className="tab-group" key={label??'intro'}>{gi>0&&<i className="tab-divider"/>}{label&&<span className="tab-group-label">{label}</span>}{group.map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div>)}</div><div className="workspace-body">{tab==='개요'&&<Overview item={item}/>} {tab==='견적 검증'&&<Validation item={item} validation={validation} setDrawer={setDrawer} onConfirm={()=>setModal(true)} onDefer={deferQuote}/>} {tab==='참고정보'&&<References setDrawer={setDrawer}/>} {tab==='계약'&&<Contract clauses={clauses} setClauses={setClauses} draft={draft} loading={loading} generate={()=>{setLoading(true);setTimeout(()=>{setClauses(buildContractClauses(item,validation.routePath));setLoading(false);setDraft(true)},1200)}} onConfirm={confirmContract} item={item} routePath={validation.routePath}/>} {tab==='문서'&&<Documents item={item} docs={docs} onUpload={uploadDoc} routePath={validation.routePath}/>} {tab==='정산'&&<Settlement item={item} docs={docs} onUpload={uploadDoc} notify={notify} validation={validation}/>}</div><QuotePageChatbot/>{drawer&&<EvidenceDrawer state={drawer} close={()=>setDrawer(null)}/>} {modal&&<ConfirmModal close={()=>setModal(false)} confirm={confirm}/>}</div>}
-function Stepper({status}:{status:CaseStatus}){const steps=['견적 등록','AI 검증','계약','문서','정산'];const idx=status==='검증 대기'||status==='검토 필요'?1:status==='견적 확정'||status==='계약'?2:4;return <div className="stepper">{steps.map((s,i)=><div className={i<idx?'done':i===idx?'current':''} key={s}><span>{i<idx?'✓':i+1}</span><b>{s}</b>{i<steps.length-1&&<i/>}</div>)}</div>}
+function Stepper({status}:{status:CaseStatus}){const steps=['견적 등록','AI 검증','계약','문서','정산'];const idx=status==='검증 대기'||status==='검토 필요'?1:status==='견적 확정'||status==='계약'?2:status==='문서'?3:4;return <div className="stepper">{steps.map((s,i)=><div className={i<idx?'done':i===idx?'current':''} key={s}><span>{i<idx?'✓':i+1}</span><b>{s}</b>{i<steps.length-1&&<i/>}</div>)}</div>}
 function Overview({item}:{item:CaseItem}){
  const {origin,destination}=parseRoute(item.route);
  const {stages}=buildRoutePath(origin,destination);
@@ -645,45 +652,63 @@ function Contract({clauses,setClauses,draft,loading,generate,onConfirm,item,rout
  const [signStatus,setSignStatus]=useState<'none'|'pending'|'signed'>('none');
  const [signedAt,setSignedAt]=useState('');
  const [smgsRefOpen,setSmgsRefOpen]=useState(false);
+ const [addOpen,setAddOpen]=useState(false);
+ const [newClauseTitle,setNewClauseTitle]=useState('');
+ const [newClauseBody,setNewClauseBody]=useState('');
  const startEdit=(i:number)=>{setEditingIndex(i);setDraftTitle(clauses[i].title);setDraftBody(clauses[i].body)};
  const saveEdit=()=>{if(editingIndex===null)return;setClauses(cs=>cs.map((c,i)=>i===editingIndex?{title:draftTitle,body:draftBody}:c));setEditingIndex(null)};
  const cancelEdit=()=>setEditingIndex(null);
  // 실제 전자서명 SDK 연동 없이 "요청 → (약간의 지연) → 서명 완료" 상태 전환만 시뮬레이션한다.
  // 다른 시뮬레이션(문서 업로드 등)과 동일하게 setTimeout으로 로딩 구간을 흉내낸다.
- const requestSign=()=>{setSignStatus('pending');setTimeout(()=>{setSignStatus('signed');setSignedAt(new Date().toLocaleString('ko-KR'))},900)};
+ const requestSign=()=>{setSignedAt(new Date().toLocaleString('ko-KR'));setSignStatus('pending');setTimeout(()=>setSignStatus('signed'),4000)};
+ const addClause=()=>setAddOpen(true);
+ const saveNewClause=()=>{if(!newClauseTitle.trim()||!newClauseBody.trim())return;setClauses(cs=>[...cs,{title:newClauseTitle.trim(),body:newClauseBody.trim()}]);setNewClauseTitle('');setNewClauseBody('');setAddOpen(false)};
+ useEffect(()=>{
+  if(!draft)return;
+  const title=document.querySelector<HTMLElement>('.figma-case-detail .contract-workspace>.validation-title');
+  if(!title||title.querySelector('.add-clause-button'))return;
+  const button=document.createElement('button');button.type='button';button.className='primary add-clause-button';button.textContent='특약 조항 추가';button.addEventListener('click',addClause);title.append(button);
+  return()=>button.removeEventListener('click',addClause);
+ },[draft,clauses.length]);
  const scheduleLines=useMemo(()=>splitCostByStages(item.price,costBearingStages(routePath.stages)),[item.price,routePath]);
- return <div><div className="validation-title"><div><span className="section-kicker">CONTRACT WORKSPACE</span><h2>계약 특약 초안</h2><p>확정된 견적 및 운송조건을 바탕으로 특약을 작성합니다.</p></div>{!draft&&!loading&&<button className="primary" onClick={generate}><Icon name="spark"/> 특약 초안 생성</button>}</div><div className="notice"><Icon name="info"/><span><b>담당자 검토가 필요합니다.</b> AI가 생성한 초안이며 실제 계약 적용 전 법무 및 담당자의 확인이 필요합니다.</span></div>{loading&&<div className="card loading"><span className="spinner"/><b>견적 및 운송조건을 기반으로 특약을 작성하고 있습니다...</b><small>운송구간과 확인사항을 반영하고 있어요.</small></div>}{!draft&&!loading&&<div className="card contract-empty"><span>◇</span><h3>아직 생성된 특약 초안이 없습니다.</h3><p>확정된 견적정보와 포워더 확인사항을 바탕으로 초안을 생성하세요.</p></div>}{draft&&<div className="clauses">{clauses.map((c,i)=>{const editing=editingIndex===i;return <section className="card" key={i}><header><span>{String(i+1).padStart(2,'0')}</span>{editing?<input className="clause-title-input" value={draftTitle} onChange={e=>setDraftTitle(e.target.value)}/>:<h3>{c.title}</h3>}{editing?<div className="clause-edit-actions"><button onClick={saveEdit}>저장</button><button onClick={cancelEdit}>취소</button></div>:<button onClick={()=>startEdit(i)}>수정</button>}</header>{editing?<textarea className="clause-body-input" value={draftBody} onChange={e=>setDraftBody(e.target.value)} rows={3}/>:<p>{c.body}</p>}{!editing&&c.title==='SMGS 협약 준수'&&<div className="smgs-reference"><button className="text-btn" onClick={()=>setSmgsRefOpen(o=>!o)}>{smgsRefOpen?'근거 조항 접기 ▴':'근거 조항 보기 ▾'}</button>{smgsRefOpen&&<ul className="smgs-reference-list">{SMGS_REFERENCE_ITEMS.map(item=><li key={item.requirement}><b>{item.article}</b><span>{item.requirement}</span>{item.note&&<small>{item.note}</small>}</li>)}</ul>}</div>}</section>})}</div>}
+ return <div className="contract-workspace"><div className="validation-title"><div><span className="section-kicker">CONTRACT WORKSPACE</span><h2>계약 특약 초안</h2><p>확정된 견적 및 운송조건을 바탕으로 특약을 작성합니다.</p></div>{!draft&&!loading&&<button className="primary" onClick={generate}><Icon name="spark"/> 특약 초안 생성</button>}</div><div className="notice"><Icon name="info"/><span><b>담당자 검토가 필요합니다.</b> AI가 생성한 초안이며 실제 계약 적용 전 법무 및 담당자의 확인이 필요합니다.</span></div>{loading&&<div className="card loading"><span className="spinner"/><b>견적 및 운송조건을 기반으로 특약을 작성하고 있습니다...</b><small>운송구간과 확인사항을 반영하고 있어요.</small></div>}{!draft&&!loading&&<div className="card contract-empty"><span>◇</span><h3>아직 생성된 특약 초안이 없습니다.</h3><p>확정된 견적정보와 포워더 확인사항을 바탕으로 초안을 생성하세요.</p></div>}{draft&&<div className="clauses">{clauses.map((c,i)=>{const editing=editingIndex===i;return <section className="card" key={i}><header><span>{String(i+1).padStart(2,'0')}</span>{editing?<input className="clause-title-input" value={draftTitle} onChange={e=>setDraftTitle(e.target.value)}/>:<h3>{c.title}</h3>}{editing?<div className="clause-edit-actions"><button onClick={saveEdit}>저장</button><button onClick={cancelEdit}>취소</button></div>:<button onClick={()=>startEdit(i)}>수정</button>}</header>{editing?<textarea className="clause-body-input" value={draftBody} onChange={e=>setDraftBody(e.target.value)} rows={3}/>:<p>{c.body}</p>}{!editing&&c.title==='SMGS 협약 준수'&&<div className="smgs-reference"><button className="text-btn" onClick={()=>setSmgsRefOpen(o=>!o)}>{smgsRefOpen?'근거 조항 접기 ▴':'근거 조항 보기 ▾'}</button>{smgsRefOpen&&<ul className="smgs-reference-list">{SMGS_REFERENCE_ITEMS.map(item=><li key={item.requirement}><b>{item.article}</b><span>{item.requirement}</span>{item.note&&<small>{item.note}</small>}</li>)}</ul>}</div>}</section>})}</div>}
  {draft&&<section className="card rate-schedule">
   <div className="card-head"><div><span className="section-kicker">SCHEDULE OF RATES</span><h3>별첨 1 — 구간별 운임 명세</h3></div></div>
   <p className="schedule-desc">구간별 운임은 계약 본문이 아닌 별첨으로 명시하는 것이 국제복합운송계약의 일반적인 방식입니다. 견적 확정 시 산출된 구간별 원가 구성을 그대로 옮겼습니다.</p>
   <table className="schedule-table"><thead><tr><th>구간</th><th>운송 방식</th><th>금액</th></tr></thead><tbody>{scheduleLines.map(l=><tr key={l.label}><td>{l.label}</td><td>{l.mode}</td><td>{money(l.amount)}</td></tr>)}</tbody><tfoot><tr><td colSpan={2}>합계</td><td><b>{money(item.price)}</b></td></tr></tfoot></table>
  </section>}
  {draft&&<section className="card e-signature">
-  <div className="card-head"><div><span className="section-kicker">E-SIGNATURE</span><h3>전자서명</h3></div>{signStatus==='signed'&&<Badge tone="green">서명 완료</Badge>}</div>
+  <div className="card-head"><div><span className="section-kicker">E-SIGNATURE</span><h3>전자 서명</h3></div>{signStatus!=='none'&&<Badge tone="green">서명 완료</Badge>}</div>
   {signStatus==='none'&&<div className="sign-empty"><p>화주({item.shipper})와 포워더({item.forwarder}) 양측의 전자서명이 필요합니다.</p><button className="primary" onClick={requestSign}><Icon name="spark"/> 전자서명 요청</button></div>}
-  {signStatus==='pending'&&<div className="doc-loading"><span className="spinner"/>화주·포워더 서명을 요청하고 있습니다...</div>}
+  {signStatus==='pending'&&<div className="sign-done sign-progress"><div><b>{item.shipper}</b><small>화주 · 서명 완료 · {signedAt}</small></div><div><b>{item.forwarder}</b><small>포워더 · 서명 진행 중 · {signedAt}</small></div></div>}
   {signStatus==='signed'&&<div className="sign-done"><div><b>{item.shipper}</b><small>화주 · 서명 완료 · {signedAt}</small></div><div><b>{item.forwarder}</b><small>포워더 · 서명 완료 · {signedAt}</small></div></div>}
   <small className="hint">법적 효력이 있는 전자서명이 아니라 데모용 시뮬레이션입니다.</small>
  </section>}
- {draft&&<div className="form-actions"><span><Icon name="info"/> {signStatus==='signed'?'서명이 완료되었습니다. 계약을 확정하세요.':'전자서명을 완료해야 계약을 확정할 수 있습니다.'}</span><div><button className="primary" disabled={signStatus!=='signed'} onClick={onConfirm}><Icon name="check"/> 계약 확정</button></div></div>}</div>}
+ {draft&&<div className="form-actions"><span><Icon name="info"/> {signStatus==='signed'?'서명이 완료되었습니다. 계약을 확정하세요.':'전자서명을 완료해야 계약을 확정할 수 있습니다.'}</span><div><button className="primary" disabled={signStatus!=='signed'} onClick={onConfirm}><Icon name="check"/> 계약 확정</button></div></div>}
+ {addOpen&&<><div className="overlay clause-add-overlay" onClick={()=>setAddOpen(false)}/><section className="clause-add-modal" role="dialog" aria-modal="true" aria-labelledby="clause-add-title"><header><div><h2 id="clause-add-title">특약 조항 추가</h2></div><button type="button" aria-label="닫기" onClick={()=>setAddOpen(false)}>×</button></header><label><span>조항 제목</span><input autoFocus value={newClauseTitle} onChange={e=>setNewClauseTitle(e.target.value)} placeholder="예: 운송 일정 변경 및 통지"/></label><label><span>조항 내용</span><textarea value={newClauseBody} onChange={e=>setNewClauseBody(e.target.value)} placeholder="계약 당사자 간 합의할 특약 내용을 입력하세요." rows={5}/></label><footer><button type="button" className="primary" disabled={!newClauseTitle.trim()||!newClauseBody.trim()} onClick={saveNewClause}>조항 추가</button></footer></section></>}
+ </div>}
 // 계약서·Packing List·화물운송장 3종만 다룬다 — 이 운송 건의 데이터를 채워나가는 "서류 처리" 문서.
 // Invoice는 성격이 달라(이미 확정된 금액과의 정산 대조) 정산 탭에서 별도로 처리한다.
 const DATA_ENTRY_DOCUMENT_TYPES = DOCUMENT_TYPES.filter((t): t is Exclude<DocumentType,'Invoice'> => t!=='Invoice');
 
 function Documents({item,docs,onUpload,routePath}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath}){
- const {origin,destination}=parseRoute(item.route);
- const throughTCR=routePath.relevantFactors.includes('tcr');
- return <div><div className="validation-title"><div><span className="section-kicker">DOCUMENT PIPELINE</span><h2>문서</h2><p>{origin} → {destination} 노선 기준으로 계약서·Packing List·화물운송장·B/L을 업로드하면 AI가 정보를 추출해 이 운송 건의 데이터로 자동 반영합니다. 화물운송장은 통상 운송인(코레일)이 구간별 확인·발행에 관여하는 서류로 알려져 있어(정확한 작성 주체 구분은 실제 계약조건에 따라 다를 수 있음), 업로드 대신 AI가 참고용 초안을 직접 작성할 수도 있습니다. {throughTCR?'연운항에서 TCR로 환적되어 국경을 통과하는 구간이라, 화물운송장은 SMGS 필수기재사항 준수 여부도 함께 확인하며, 부산항→연운항 해상 구간은 B/L로 별도 커버합니다.':'중국 내륙철도로 직접 연결되는 구간입니다.'} Invoice 대조는 정산 탭에서 진행합니다.</p></div></div><div className="notice"><Icon name="info"/><span><b>AI 추출 결과 · 확인 필요.</b> 100% 정확도를 가정하지 않으며, 이미 등록된 정보와 다른 값이 나오면(표기 형식 차이 제외) 완전일치 기준으로 확인 필요 표시를 합니다.</span></div><div className="doc-grid">{DATA_ENTRY_DOCUMENT_TYPES.map(type=><DocumentCard key={type} type={type} item={item} state={docs[type]} onUpload={onUpload} routePath={routePath}/>)}</div></div>
+ const tabs:Exclude<DocumentType,'Invoice'|'화물운송장'>[]=['계약서','Packing List','B/L'];
+ const [selected,setSelected]=useState<Exclude<DocumentType,'Invoice'|'화물운송장'>>('계약서');
+ return <div className="documents-page"><div className="validation-title"><div><h2>문서 검토</h2><p>관련 문서를 업로드하시면 AI가 내용을 분석해 운송 데이터를 자동으로 입력하고 검토해 드립니다</p></div></div>
+  <DocumentCard featured type="화물운송장" item={item} state={docs['화물운송장']} onUpload={onUpload} routePath={routePath}/>
+  <div className="document-tabs" role="tablist" aria-label="문서 종류">{tabs.map(type=><button type="button" role="tab" aria-selected={selected===type} className={selected===type?'active':''} onClick={()=>setSelected(type)} key={type}>{type}</button>)}</div>
+  <DocumentCard type={selected} item={item} state={docs[selected]} onUpload={onUpload} routePath={routePath}/>
+ </div>
 }
 
-function DocumentCard({type,item,state,onUpload,routePath}:{type:Exclude<DocumentType,'Invoice'>;item:CaseItem;state:DocState;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath}){
+function DocumentCard({type,item,state,onUpload,routePath,featured=false}:{type:Exclude<DocumentType,'Invoice'>;item:CaseItem;state:DocState;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath;featured?:boolean}){
  const inputId=`upload-${type}`;
  const info=DOCUMENT_INFO[type];
  const extraction=state.status==='done'?buildDocumentExtraction(type,item,routePath):null;
  const mismatchCount=extraction?.fields.filter(f=>f.status==='mismatch').length??0;
  const checklistFailCount=extraction?.checklist?.filter(c=>!c.pass).length??0;
  const needsAttention=mismatchCount>0||checklistFailCount>0;
- return <section className="card doc-card"><div className="doc-card-head"><div><b><Icon name={info.icon}/> {type}</b>{state.fileName&&<small>{state.fileName}</small>}</div>{state.status==='done'&&<Badge tone={needsAttention?'red':'green'}>{needsAttention?'확인 필요':'정보 반영됨'}</Badge>}</div>
+ return <section className={`card doc-card${featured?' doc-card-featured':''}`}><div className="doc-card-head"><div><b>{type}</b>{state.fileName&&<small>{state.fileName}</small>}</div>{state.status==='done'&&<Badge tone={needsAttention?'red':'green'}>{needsAttention?'확인 필요':'정보 반영됨'}</Badge>}</div>
  {state.status==='idle'&&<div className="doc-idle"><p className="doc-desc">{info.description}</p><div className="doc-fields-preview"><b>추출 예정 항목</b><div className="doc-chip-list">{info.expectedFields.map(f=><span className="doc-chip" key={f}>{f}</span>)}</div></div>{type==='화물운송장'?<><button type="button" className="primary doc-generate-btn" onClick={()=>onUpload(type,'AI 생성 초안')}><Icon name="spark"/> AI로 초안 생성</button><label className="doc-upload doc-upload-secondary" htmlFor={inputId}><Icon name="plus"/>이미 작성된 문서가 있다면 업로드<input id={inputId} type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f.name)}}/></label></>:<label className="doc-upload" htmlFor={inputId}><Icon name="plus"/>파일 업로드<input id={inputId} type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f.name)}}/></label>}<small className="doc-format-note">{info.formats.join(' · ')}</small></div>}
  {state.status==='loading'&&<div className="doc-loading"><span className="spinner"/>{state.fileName==='AI 생성 초안'?'AI가 화물운송장 초안을 작성하고 있습니다...':'AI가 문서에서 정보를 추출하고 있습니다...'}</div>}
  {extraction&&<table className="doc-fields"><tbody>{extraction.fields.map(f=><tr key={f.label} className={f.status}><td>{f.label}</td><td>{f.extracted}</td><td><Badge tone={f.status==='match'?'green':f.status==='mismatch'?'red':'blue'}>{f.status==='match'?'반영됨':f.status==='mismatch'?'확인 필요':'참고용'}</Badge></td></tr>)}</tbody></table>}
@@ -693,7 +718,12 @@ function DocumentCard({type,item,state,onUpload,routePath}:{type:Exclude<Documen
 }
 
 function DisputeChat({item,verdict,pressure,invoice}:{item:CaseItem;verdict:Verdict;pressure:QuotePressureAnalysis;invoice:InvoiceComparison}){
- const [messages,setMessages]=useState<ChatMessage[]>([{role:'bot',text:'정산 결과에 대해 궁금한 점을 물어보세요. (예: "왜 이렇게 비싸요?", "차액이 얼마예요?")'}]);
+ const exampleQuestion='계약금액보다 왜 비싸졌나요?';
+ const [messages,setMessages]=useState<ChatMessage[]>(()=>[
+  {role:'bot',text:'정산 결과에 대해 궁금한 점을 물어보세요. (예: "왜 이렇게 비싸요?", "차액이 얼마예요?")'},
+  {role:'user',text:exampleQuestion},
+  {role:'bot',text:answerDispute(exampleQuestion,item,verdict,pressure,invoice)},
+ ]);
  const [input,setInput]=useState('');
  const send=()=>{
   if(!input.trim())return;
@@ -716,24 +746,23 @@ function Settlement({item,docs,onUpload,notify,validation}:{item:CaseItem;docs:R
  const scheduleLines=useMemo(()=>splitCostByStages(item.price,costBearingStages(validation.routePath.stages)),[item.price,validation.routePath]);
  const invoice=invoiceState.status==='done'?buildInvoiceComparison(item):null;
  const pressure=buildPressure(validation);
- return <div>
-  <div className="validation-title"><div><span className="section-kicker">SETTLEMENT DRAFT</span><h2>정산 내역서</h2><p>코레일이 계약금액을 기준으로 먼저 작성한 정산 내역서입니다. 실제 Invoice가 도착하면 업로드해서 대조할 수 있습니다.</p></div>{invoice&&<div className="export"><button onClick={()=>notify('PDF 내보내기 데모가 실행되었습니다.')}><Icon name="download"/> PDF</button><button onClick={()=>notify('CSV 내보내기 데모가 실행되었습니다.')}><Icon name="download"/> CSV</button><button onClick={()=>notify('인쇄 화면을 준비했습니다.')}><Icon name="print"/> 인쇄</button></div>}</div>
+ return <div className="settlement-page">
+  <div className="validation-title"><div><h2>정산 내역서</h2><p>코레일이 계약금액을 기준으로 먼저 작성한 정산 내역서입니다. 실제 Invoice가 도착하면 업로드해서 대조할 수 있습니다.</p></div>{invoice&&<div className="export"><button onClick={()=>notify('PDF 내보내기 데모가 실행되었습니다.')}><Icon name="download"/> PDF</button><button onClick={()=>notify('CSV 내보내기 데모가 실행되었습니다.')}><Icon name="download"/> CSV</button><button onClick={()=>notify('인쇄 화면을 준비했습니다.')}><Icon name="print"/> 인쇄</button></div>}</div>
   <section className="card settlement-draft">
-   <div className="card-head"><div><span className="section-kicker">코레일 작성</span><h3>정산 내역서 초안</h3></div></div>
+   <div className="card-head"><h3>정산 내역서 초안</h3></div>
    <table className="schedule-table"><thead><tr><th>구간</th><th>운송 방식</th><th>금액</th></tr></thead><tbody>{scheduleLines.map(l=><tr key={l.label}><td>{l.label}</td><td>{l.mode}</td><td>{money(l.amount)}</td></tr>)}</tbody><tfoot><tr><td colSpan={2}>합계(계약금액)</td><td><b>{money(item.price)}</b></td></tr></tfoot></table>
   </section>
   {!invoice&&<section className="card doc-card">
    <div className="doc-card-head"><div><b>Invoice 대조</b>{invoiceState.fileName&&<small>{invoiceState.fileName}</small>}</div></div>
    <p className="doc-desc">실제 포워더 Invoice가 도착하면 업로드해서 위 정산 내역서와 대조하세요.</p>
-   {invoiceState.status==='idle'&&<label className="doc-upload" htmlFor="upload-invoice-settlement"><Icon name="plus"/>Invoice 업로드<input id="upload-invoice-settlement" type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f.name)}}/></label>}
+   {invoiceState.status==='idle'&&<><label className="doc-upload" htmlFor="upload-invoice-settlement"><Icon name="plus"/>파일 업로드<input id="upload-invoice-settlement" type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f.name)}}/></label><small className="doc-format-note">PDF · JPG · PNG</small></>}
    {invoiceState.status==='loading'&&<div className="doc-loading"><span className="spinner"/>AI가 Invoice에서 청구내역을 추출하고 있습니다...</div>}
   </section>}
   {invoice&&<>
-   {invoice.isMismatch&&<div className="notice"><Icon name="info"/><span><b>계약금액과 Invoice 청구액이 일치하지 않습니다.</b> 차액 {invoice.diff>=0?'+':''}{money(invoice.diff)} — 신규 항목(BAF·서류비 등) 포함 여부를 포워더에 확인하세요.</span></div>}
-   <section className="card settlement-info"><h3>정산정보</h3><dl><div><dt>Case</dt><dd>{item.id}</dd></div><div><dt>화주</dt><dd>{item.shipper}</dd></div><div><dt>노선</dt><dd>{item.route}</dd></div><div><dt>포워더</dt><dd>{item.forwarder}</dd></div></dl></section>
-   <section className="card cost-table"><table><thead><tr><th>비용 항목</th><th>금액</th><th>통화</th><th>구분</th></tr></thead><tbody>{invoice.lineItems.map(l=><tr key={l.label}><td>{l.label}</td><td>{l.amount.toLocaleString()}</td><td>{l.currency}</td><td>{l.isNew?<Badge tone="amber">신규 항목</Badge>:<Badge tone="blue">계약 대응</Badge>}</td></tr>)}</tbody></table><footer><span>Invoice 총액 vs 계약금액 {money(invoice.contractAmount)}<small>완전일치 기준 — 허용오차 없음</small></span><b style={{color:invoice.isMismatch?'#c84449':'#207c56'}}>{money(invoice.invoiceTotal)} ({invoice.diff>=0?'+':''}{money(invoice.diff)})</b></footer></section>
+   {invoice.isMismatch&&<section className="settlement-alert"><Badge tone="red">{invoice.diff>=0?'+':''}{money(invoice.diff)}</Badge><h3>계약금액과 Invoice 청구액이 일치하지 않습니다.</h3><p>신규 항목(BAF·서류비 등) 포함 여부를 포워더에 확인하세요.</p></section>}
+   <section className="card settlement-reconciliation"><h3>정산 정보</h3><dl><div><dt>Case</dt><dd>{item.id}</dd></div><div><dt>화주</dt><dd>{item.shipper}</dd></div><div><dt>노선</dt><dd>{item.route}</dd></div><div><dt>포워더</dt><dd>{item.forwarder}</dd></div></dl><div className="cost-table"><table><thead><tr><th>비용 항목</th><th>금액</th><th>통화</th><th>구분</th></tr></thead><tbody>{invoice.lineItems.map(l=><tr key={l.label}><td>{l.label}</td><td>{l.amount.toLocaleString()}</td><td>{l.currency}</td><td>{l.isNew?<Badge tone="amber">신규 항목</Badge>:<Badge tone="blue">계약 대응</Badge>}</td></tr>)}</tbody></table><footer><span>Invoice 총액 vs 계약금액 {money(invoice.contractAmount)}</span><b style={{color:invoice.isMismatch?'#c84449':'#207c56'}}>{money(invoice.invoiceTotal)} ({invoice.diff>=0?'+':''}{money(invoice.diff)})</b></footer></div></section>
    <section className="card tax-invoice">
-    <div className="card-head"><div><span className="section-kicker">TAX INVOICE</span><h3>세금계산서</h3></div>{taxInvoiceGenerated&&<Badge tone="green">발행 완료</Badge>}</div>
+    <div className="card-head"><div><h3>세금 계산서</h3></div></div>
     {!taxInvoiceGenerated?<div className="tax-invoice-empty"><p>정산 대조 결과를 기준으로 세금계산서를 자동 생성합니다.</p><button className="primary" onClick={()=>{const tax=buildTaxInvoice(item,invoice);saveTaxInvoice({caseId:item.id,supplyAmount:tax.supplyAmount,vatAmount:tax.taxAmount,totalAmount:tax.totalAmount,currency:'USD',status:'issued'}).catch(error=>console.error('세금계산서 저장 실패:',error));setTaxInvoiceGenerated(true)}}><Icon name="spark"/> 세금계산서 발행</button></div>
     :(()=>{const tax=buildTaxInvoice(item,invoice);return <dl className="tax-invoice-fields">
       <div><dt>작성일자</dt><dd>{tax.issueDate}</dd></div>
@@ -745,7 +774,6 @@ function Settlement({item,docs,onUpload,notify,validation}:{item:CaseItem;docs:R
       <div><dt>세액</dt><dd>${tax.taxAmount.toLocaleString()}</dd></div>
       <div><dt>합계금액</dt><dd><b>${tax.totalAmount.toLocaleString()}</b></dd></div>
      </dl>})()}
-    <small className="hint">실제 국세청 홈택스 연동이 아닌 데모용 시뮬레이션입니다.</small>
    </section>
    <DisputeChat item={item} verdict={validation.verdict} pressure={pressure} invoice={invoice}/>
   </>}
@@ -857,4 +885,25 @@ function GlobalSearch({cases,notify}:{cases:CaseItem[];notify:(m:string)=>void})
  </div>;
 }
 const MODULE_META:Record<string,{eyebrow:string;pending:number}>={계약:{eyebrow:'CONTRACTS',pending:3},문서:{eyebrow:'DOCUMENTS',pending:2},정산:{eyebrow:'SETTLEMENTS',pending:2}};
-function ModuleList({type,cases,go}:{type:string;cases:CaseItem[];go:(p:string)=>void}){const subset=cases.filter(c=>type==='계약'?['견적 확정','계약','정산'].includes(c.status):['계약','정산'].includes(c.status));const meta=MODULE_META[type]??MODULE_META['계약'];return <div className="page"><PageTitle eyebrow={meta.eyebrow} title={`${type} 업무`} desc={`견적 Case와 연결된 ${type} 진행상태를 확인하세요.`}/><div className="module-stats"><div className="card"><span>진행 대기</span><b>{meta.pending}</b><small>이번 주</small></div><div className="card"><span>검토 중</span><b>2</b><small>담당자 확인 필요</small></div><div className="card"><span>완료</span><b>8</b><small>이번 달</small></div></div><div className="table-card card"><div className="table-summary"><b>{type} 대상 Case</b><span>{subset.length}건</span></div><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>포워더</th><th>상태</th><th></th></tr></thead><tbody>{subset.map(c=><tr key={c.id} onClick={()=>go('/cases/'+c.id+'?tab='+encodeURIComponent(type))}><td><b>{c.id}</b></td><td><b>{c.shipper}</b><small>{c.item}</small></td><td>{c.route}</td><td>{c.forwarder}</td><td><Badge tone={statusClass(c.status)}>{c.status}</Badge></td><td><Icon name="arrow"/></td></tr>)}</tbody></table></div></div>}
+function ModuleList({type,cases,go}:{type:string;cases:CaseItem[];go:(p:string)=>void}){
+ const isContract=type==='계약';
+ const isDocument=type==='문서';
+ const isSettlement=type==='정산';
+ const subset=cases.filter(c=>isContract?c.status==='계약':isDocument?c.status==='문서':['계약','문서','정산'].includes(c.status));
+ const meta=MODULE_META[type]??MODULE_META['계약'];
+ if(isContract||isDocument||isSettlement)return <div className={`page figma-contract-list${isDocument?' figma-document-list':''}${isSettlement?' figma-settlement-list':''}`}>
+  <h1>{isSettlement?'문서':type} 업무</h1>
+  <div className="module-stats contract-stats">
+   <div className="card"><span>진행 대기</span><b>3</b></div>
+   <div className="card"><span>검토 중</span><b>1</b></div>
+   <div className="card"><span>완료</span><b>8</b></div>
+  </div>
+  <div className="table-card card contract-table-card">
+   <div className="table-summary"><div><b>{type} 대상 CASE</b><span>{subset.length}건</span></div><button type="button">등록일 순 ↕</button></div>
+   <div className="contract-table-scroll"><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>상태</th><th>등록일</th></tr></thead><tbody>{subset.map(c=><tr key={c.id} onClick={()=>go('/cases/'+c.id+'?tab='+encodeURIComponent(type))}><td>{c.id}</td><td><b>{c.shipper}</b><small>{c.item}<br/>{c.container}</small></td><td><span>{c.route.split(' → ')[0]}→</span><span>{c.route.split(' → ')[1]}</span></td><td>{isSettlement?<Badge tone="violet">계약</Badge>:<Badge tone={statusClass(c.status)}>{c.status}</Badge>}</td><td>{c.date}</td></tr>)}</tbody></table></div>
+   {!subset.length&&<div className="empty"><span>◇</span><b>{type} 대상 CASE가 없습니다.</b><small>{isDocument?'계약이 완료되어 문서 작업이 가능한 운송 건이 여기에 표시됩니다.':isSettlement?'문서 검토가 완료되어 정산 가능한 운송 건이 여기에 표시됩니다.':'계약 단계로 이동한 운송 건이 여기에 표시됩니다.'}</small></div>}
+  </div>
+  <QuotePageChatbot/>
+ </div>;
+ return <div className="page"><PageTitle eyebrow={meta.eyebrow} title={`${type} 업무`} desc={`견적 Case와 연결된 ${type} 진행상태를 확인하세요.`}/><div className="module-stats"><div className="card"><span>진행 대기</span><b>{meta.pending}</b><small>이번 주</small></div><div className="card"><span>검토 중</span><b>2</b><small>담당자 확인 필요</small></div><div className="card"><span>완료</span><b>8</b><small>이번 달</small></div></div><div className="table-card card"><div className="table-summary"><b>{type} 대상 Case</b><span>{subset.length}건</span></div><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>포워더</th><th>상태</th><th></th></tr></thead><tbody>{subset.map(c=><tr key={c.id} onClick={()=>go('/cases/'+c.id+'?tab='+encodeURIComponent(type))}><td><b>{c.id}</b></td><td><b>{c.shipper}</b><small>{c.item}</small></td><td>{c.route}</td><td>{c.forwarder}</td><td><Badge tone={statusClass(c.status)}>{c.status}</Badge></td><td><Icon name="arrow"/></td></tr>)}</tbody></table></div></div>
+}

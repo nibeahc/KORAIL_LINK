@@ -1,4 +1,4 @@
-export type CaseStatus = "검증 대기" | "검토 필요" | "견적 확정" | "계약" | "정산";
+export type CaseStatus = "검증 대기" | "검토 필요" | "견적 확정" | "계약" | "문서" | "정산";
 
 export type CaseItem = {
   id: string;
