@@ -77,6 +77,31 @@ export interface ContractInfo {
   signedAt?: string;
 }
 
+/** 1차 파싱 대상 4종 (B-1, B-2). 문서유형 enum에 추가하기 쉬운 형태로 — 2차 확장(Container List 등) 대비 */
+export type DocumentType = 'contract' | 'packing_list' | 'waybill' | 'bl';
+
+export const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
+  contract: '계약서',
+  packing_list: 'Packing List',
+  waybill: '화물운송장(SMGS)',
+  bl: 'B/L(해상 구간)',
+};
+
+/**
+ * 업로드/생성된 문서 1건. extractedSnapshot은 업로드 시점에 한 번만 고정한다 —
+ * 이후 Case Master Data가 바뀌어도 이 스냅샷 자체는 바뀌지 않아야, 그 시점 이후의
+ * Case 편집과 비교했을 때 실제 불일치가 드러난다(B-9 결정론성 + B-4 대조 로직).
+ */
+export interface CaseDocument {
+  id: string;
+  documentType: DocumentType;
+  fileName: string;
+  uploadedAt: string;
+  extractedSnapshot: Record<string, string | null>;
+  /** 필드별 담당자 처리 결과 — 대조에서 확인 필요/불일치로 뜬 필드만 채워진다 */
+  resolutions: Record<string, 'keep_current' | 'apply_document' | 'confirm_later'>;
+}
+
 /**
  * 불변식: costLedger.length > 0이면
  *   price === costLedger.reduce((sum, l) => sum + l.quotedAmount, 0)
@@ -95,4 +120,5 @@ export interface CaseItem {
   masterData: CaseMasterData;
   costLedger: CostLedgerLine[];
   contract?: ContractInfo;
+  documents?: CaseDocument[];
 }
