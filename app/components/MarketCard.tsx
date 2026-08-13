@@ -9,14 +9,15 @@ function formatValue(indicator: IndicatorKey, value: number): string {
   return value.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function MarketCard({ indicator, onClick }: { indicator: IndicatorKey; onClick?: (indicator: IndicatorKey) => void }) {
+export function MarketCard({ indicator, onClick, liveValue }: { indicator: IndicatorKey; onClick?: (indicator: IndicatorKey) => void; liveValue?: number }) {
   const series = SERIES[indicator];
   const anomaly = detectAnomaly(series);
+  const value = liveValue ?? anomaly.latest;
 
   return (
     <button type="button" className="market" onClick={() => onClick?.(indicator)}>
       <span>{INDICATOR_LABEL[indicator]}</span>
-      <b>{formatValue(indicator, anomaly.latest)}</b>
+      <b>{formatValue(indicator, value)}</b>
       <em className={anomaly.changePct >= 0 ? 'up' : 'down'}>
         {anomaly.changePct >= 0 ? '+' : '−'}
         {Math.abs(anomaly.changePct).toFixed(1)}%

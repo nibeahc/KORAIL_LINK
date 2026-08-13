@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useCases } from '../../../../lib/state';
 import type { CaseDocument, DocumentType, FieldChange } from '../../../../lib/types';
 import { DOCUMENT_TYPE_LABEL } from '../../../../lib/types';
-import { buildComparison, buildWaybillDraft, simulateExtraction, VERDICT_LABEL, CASE_FIELD_DEFS, type FieldVerdict } from '../../../../lib/documentEngine';
+import { buildComparison, buildWaybillDraft, simulateExtraction, VERDICT_LABEL, CASE_FIELD_DEFS, type FieldVerdict, type WaybillDraft } from '../../../../lib/documentEngine';
 import { decideCaseFieldChange, updateDocumentExtractionResult, uploadCaseDocument } from '../../../../lib/supabase';
 import { CaseHeader } from '../../../../components/CaseHeader';
 import { CaseTabs } from '../../../../components/CaseTabs';
@@ -23,6 +23,7 @@ export default function CaseDocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showWaybillDraft, setShowWaybillDraft] = useState(false);
+  const [aiWaybillDraft, setAiWaybillDraft] = useState<WaybillDraft | null>(null);
 
   if (!item) {
     return (
@@ -38,20 +39,29 @@ export default function CaseDocumentsPage() {
     setPendingType(type);
     setUploading(true);
     setError(null);
-    const snapshot = simulateExtraction(type, item!.masterData);
+    let snapshot: Record<string, string | null>;
     try {
+      const form = new FormData();
+      form.set('file', file);
+      form.set('documentType', type);
+      const extractionResponse = await fetch('/api/documents/extract', { method: 'POST', body: form });
+      const extraction = (await extractionResponse.json()) as { snapshot?: Record<string, string | null>; error?: string };
+      if (!extractionResponse.ok || !extraction.snapshot) throw new Error(extraction.error ?? 'OCR 결과를 받지 못했습니다.');
+      snapshot = extraction.snapshot;
       const uploaded = await uploadCaseDocument({ caseId: item!.id, documentType: type, file, extractionResult: { snapshot, resolutions: {} } });
       const doc: CaseDocument = { id: uploaded.id, documentType: type, fileName: file.name, uploadedAt: new Date().toISOString(), extractedSnapshot: snapshot, resolutions: {} };
       setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, documents: [...(c.documents ?? []), doc] } : c)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '문서 업로드에 실패했습니다.');
+      snapshot = simulateExtraction(type, item!.masterData);
+      setError(`OCR 추출에 실패해 시뮬레이션 결과로 저장하지 않았습니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
     } finally {
       setUploading(false);
       setPendingType(null);
     }
   }
 
-  function handleGenerateWaybillDraft() {
+  async function handleGenerateWaybillDraft() {
+    setError(null);
     const snapshot = simulateExtraction('waybill', item!.masterData);
     const doc: CaseDocument = {
       id: crypto.randomUUID(),
@@ -62,6 +72,15 @@ export default function CaseDocumentsPage() {
       resolutions: {},
     };
     setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, documents: [...(c.documents ?? []), doc] } : c)));
+    try {
+      const response = await fetch('/api/documents/draft', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(item!.masterData) });
+      const result = (await response.json()) as { fields?: WaybillDraft['fields']; error?: string };
+      if (!response.ok || !result.fields) throw new Error(result.error ?? 'AI 초안 결과를 받지 못했습니다.');
+      setAiWaybillDraft({ fields: result.fields, checklist: buildWaybillDraft(item!.masterData).checklist });
+    } catch (err) {
+      setAiWaybillDraft(null);
+      setError(`생성형 AI 초안 생성에 실패해 기본 데이터 초안을 표시합니다: ${err instanceof Error ? err.message : '알 수 없는 오류'}`);
+    }
     setShowWaybillDraft(true);
   }
 
@@ -106,7 +125,7 @@ export default function CaseDocumentsPage() {
     void updateDocumentExtractionResult(doc.id, { snapshot: doc.extractedSnapshot, resolutions: { ...doc.resolutions, [field]: action } }).catch(() => {});
   }
 
-  const waybillDraft = buildWaybillDraft(item.masterData);
+  const waybillDraft = aiWaybillDraft ?? buildWaybillDraft(item.masterData);
 
   return (
     <div className="case-workspace">

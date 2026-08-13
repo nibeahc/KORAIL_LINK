@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { newsArticles, thisWeekBriefingNews, type NewsCategory } from '../../lib/newsData';
+import { useEffect, useMemo, useState } from 'react';
+import { newsArticles, thisWeekBriefingNews, type NewsArticle, type NewsCategory } from '../../lib/newsData';
 import { detectAnomaly, INDICATOR_LABEL, SERIES, type IndicatorKey } from '../../lib/marketData';
 import { buildCausalAnalysis, type CausalAnalysis } from '../../lib/causalAnalysis';
 import { PageTitle } from '../../components/PageTitle';
@@ -20,12 +20,25 @@ const CATEGORY_TONE: Record<NewsCategory, 'red' | 'amber' | 'green' | 'blue'> = 
   지정학: 'red',
 };
 const WEEKLY_INDICATORS: IndicatorKey[] = ['usdKrw', 'cnyKrw', 'brent', 'usdKzt', 'usdUzs', 'usdKgs', 'kcci', 'kci'];
+type LiveNewsArticle = Omit<NewsArticle, 'indicator'> & { url: string; source: string };
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<NewsCategory | 'all'>('all');
   const [drawer, setDrawer] = useState<CausalAnalysis | null>(null);
+  const [liveNews, setLiveNews] = useState<LiveNewsArticle[]>([]);
+  const [translationMessage, setTranslationMessage] = useState<string | null>(null);
   const briefing = useMemo(() => thisWeekBriefingNews(6), []);
+
+  useEffect(() => {
+    fetch('/api/news')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('News request failed'))))
+      .then((data: { articles?: LiveNewsArticle[]; translation?: { status?: string; message?: string } }) => {
+        setLiveNews(data.articles ?? []);
+        setTranslationMessage(data.translation?.status === 'failed' ? (data.translation.message ?? '뉴스 번역에 실패했습니다.') : null);
+      })
+      .catch(() => setTranslationMessage('뉴스 수집에 실패했습니다. 저장된 정보망을 표시합니다.'));
+  }, []);
 
   const anomalies = useMemo(
     () => WEEKLY_INDICATORS.map((key) => ({ key, anomaly: detectAnomaly(SERIES[key]) })).filter((d) => d.anomaly.isAnomaly),
@@ -33,15 +46,20 @@ export default function SearchPage() {
   );
 
   const results = useMemo(() => {
-    return newsArticles
+    const source: NewsArticle[] = liveNews.length > 0
+      ? liveNews.map((article) => ({ ...article, indicator: null }))
+      : newsArticles;
+    return source
       .filter((a) => (category === 'all' ? true : a.category === category))
       .filter((a) => (query.trim() ? a.title.includes(query) || a.summary.includes(query) : true))
       .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
-  }, [query, category]);
+  }, [query, category, liveNews]);
 
   return (
     <div className="page search-page">
       <PageTitle eyebrow="INFORMATION HUB" title="통합 정보 검색" desc="과거 견적과 시장정보를 한 번에 검색하세요." />
+
+      {translationMessage && <div className="notice"><Icon name="info" /><span>{translationMessage}</span></div>}
 
       <section className="card weekly-briefing">
         <div className="card-head">

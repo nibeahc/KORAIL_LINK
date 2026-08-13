@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SERIES, type IndicatorKey } from '../../lib/marketData';
 import { buildCausalAnalysis, type CausalAnalysis } from '../../lib/causalAnalysis';
 import { MarketCard } from '../../components/MarketCard';
@@ -11,9 +11,18 @@ const GROUPS: { title: string; indicators: IndicatorKey[] }[] = [
   { title: '환율', indicators: ['usdKrw', 'cnyKrw', 'usdKzt', 'usdUzs', 'usdKgs'] },
   { title: '유가·해상운임', indicators: ['brent', 'kcci', 'kci'] },
 ];
+type LiveRates = Partial<Record<IndicatorKey, number>>;
 
 export default function MarketPage() {
   const [drawer, setDrawer] = useState<CausalAnalysis | null>(null);
+  const [liveRates, setLiveRates] = useState<LiveRates>({});
+
+  useEffect(() => {
+    fetch('/api/market')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Market request failed'))))
+      .then((data: { rates?: LiveRates }) => setLiveRates(data.rates ?? {}))
+      .catch(() => {});
+  }, []);
 
   function openDrawer(indicator: IndicatorKey) {
     setDrawer(buildCausalAnalysis(indicator, SERIES[indicator]));
@@ -32,7 +41,7 @@ export default function MarketPage() {
           </div>
           <div className="market-strip" style={{ gridTemplateColumns: `repeat(${group.indicators.length}, 1fr)` }}>
             {group.indicators.map((ind) => (
-              <MarketCard key={ind} indicator={ind} onClick={openDrawer} />
+              <MarketCard key={ind} indicator={ind} onClick={openDrawer} liveValue={liveRates[ind]} />
             ))}
           </div>
         </section>

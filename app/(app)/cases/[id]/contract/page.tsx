@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useCases } from '../../../../lib/state';
 import { recommendClauses } from '../../../../lib/contractEngine';
-import { insertCaseStatusHistory, replaceCostLedger, upsertContract } from '../../../../lib/supabase';
+import { createContractApproval, decideContractApproval, insertCaseStatusHistory, listContractApprovals, replaceCostLedger, upsertContract, type ContractApproval } from '../../../../lib/supabase';
 import { getRoute } from '../../../../lib/routeData';
 import type { ClauseStatus, ContractClause, CostLedgerLine, SignStatus } from '../../../../lib/types';
 import { CaseHeader } from '../../../../components/CaseHeader';
@@ -26,6 +26,11 @@ export default function CaseContractPage() {
   const [draftGenerated, setDraftGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [signing, setSigning] = useState(false);
+  const [approvals, setApprovals] = useState<ContractApproval[]>([]);
+  const [approverName, setApproverName] = useState('');
+  const [approverEmail, setApproverEmail] = useState('');
+  const [approvalComment, setApprovalComment] = useState('');
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     if (!item) return;
@@ -34,8 +39,47 @@ export default function CaseContractPage() {
     setSignStatus(item.contract?.signStatus ?? 'none');
     setSignedAt(item.contract?.signedAt);
     setDraftGenerated(!!item.contract);
+    void refreshApprovals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);
+
+  async function refreshApprovals() {
+    if (!item) return;
+    setApprovals(await listContractApprovals(item.id).catch(() => []));
+  }
+
+  function drawSignature(event: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas || event.buttons !== 1) return;
+    const rect = canvas.getBoundingClientRect();
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+    context.lineWidth = 2;
+    context.lineCap = 'round';
+    context.strokeStyle = '#111827';
+    context.lineTo(x, y);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(x, y);
+  }
+
+  async function addApprover() {
+    if (!item || !approverName.trim()) return;
+    await upsertContract(item.id, { clauses, contractAmount: contractTotal, signStatus, signedAt });
+    await createContractApproval(item.id, approverName.trim(), approverEmail.trim());
+    setApproverName('');
+    setApproverEmail('');
+    await refreshApprovals();
+  }
+
+  async function decideApproval(id: string, status: 'approved' | 'rejected') {
+    const signature = status === 'approved' ? canvasRef.current?.toDataURL('image/png') : undefined;
+    await decideContractApproval(id, status, approvalComment, signature);
+    setApprovalComment('');
+    await refreshApprovals();
+  }
 
   const contractTotal = ledgerDraft.reduce((sum, l) => sum + l.contractAmount, 0);
   const route = useMemo(() => (item ? getRoute(item.masterData.destination) : undefined), [item]);
@@ -280,6 +324,33 @@ export default function CaseContractPage() {
                 </div>
               )}
               <small className="hint">법적 효력이 있는 전자서명이 아니라 데모용 시뮬레이션입니다.</small>
+            </section>
+
+            <section className="card" style={{ marginTop: 16 }}>
+              <div className="card-head">
+                <div>
+                  <span className="section-kicker">INTERNAL APPROVAL</span>
+                  <h3>내부 결재 기록</h3>
+                </div>
+              </div>
+              <p className="hint">내부 승인 기록용이며, 법적 전자서명이나 본인인증을 대체하지 않습니다.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginTop: 12 }}>
+                <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="결재자 이름" />
+                <input value={approverEmail} onChange={(e) => setApproverEmail(e.target.value)} placeholder="이메일 (선택)" />
+                <button className="primary" onClick={addApprover}>결재자 추가</button>
+              </div>
+              <textarea value={approvalComment} onChange={(e) => setApprovalComment(e.target.value)} placeholder="승인 또는 반려 의견" rows={2} style={{ width: '100%', marginTop: 10 }} />
+              <canvas ref={canvasRef} width={600} height={160} onPointerDown={(e) => { e.currentTarget.getContext('2d')?.beginPath(); drawSignature(e); }} onPointerMove={drawSignature} style={{ width: '100%', height: 96, marginTop: 10, border: '1px dashed #dce2e9', borderRadius: 6, touchAction: 'none' }} />
+              <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                {approvals.length === 0 && <p className="hint">등록된 결재자가 없습니다.</p>}
+                {approvals.map((approval) => (
+                  <div key={approval.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 6, padding: 10 }}>
+                    <span><b>{approval.approverName}</b> · {approval.status}{approval.comment ? ` · ${approval.comment}` : ''}</span>
+                    {approval.status === 'pending' && <span style={{ display: 'flex', gap: 6 }}><button onClick={() => decideApproval(approval.id, 'approved')}>승인</button><button onClick={() => decideApproval(approval.id, 'rejected')}>반려</button></span>}
+                  </div>
+                ))}
+              </div>
+              <button onClick={refreshApprovals} style={{ marginTop: 10 }}>결재 이력 새로고침</button>
             </section>
 
             <div className="form-actions">
