@@ -100,7 +100,7 @@ export default function CaseContractPage() {
 
   if (item.costLedger.length === 0) {
     return (
-      <div className="case-workspace">
+      <div className="case-workspace figma-case-detail">
         <CaseHeader item={item} />
         <CaseTabs caseId={item.id} />
         <div className="workspace-body">
@@ -173,7 +173,7 @@ export default function CaseContractPage() {
   }
 
   return (
-    <div className="case-workspace">
+    <div className="case-workspace figma-case-detail">
       <CaseHeader item={item} />
       <CaseTabs caseId={item.id} />
 

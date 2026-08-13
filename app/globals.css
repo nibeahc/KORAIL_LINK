@@ -93,3 +93,397 @@
 .login-message{font-size:11px;color:var(--red);margin:0}
 .login-switch{align-self:center}
 .tax-type-hint{color:var(--muted);font-weight:400}
+
+/* Figma home (node 1:28) */
+:root{--sidebar:227px}.auth-status{display:none}.topbar{height:74px;margin-left:calc(var(--sidebar) * -1);padding:0 25px 0 18px;background:#fff;position:sticky;top:0}.top-brand{display:flex;align-items:center;gap:16px}.top-brand button{border:0;background:transparent;color:#244d78;font-size:20px;padding:0}.korail-logo{display:block;width:176px;height:26px;object-fit:contain}.top-actions .fx{background:#f6f8fb;border:1px solid #e6eaf0;border-radius:4px;padding:8px 10px}.top-actions .date{font-size:11px;color:#677384}
+.sidebar{top:74px;width:var(--sidebar);background:#003b7a;padding:24px 11px 18px}.sidebar .brand{display:none}.sidebar nav{gap:25px}.sidebar-group{gap:8px}.sidebar-group:first-child .sidebar-group-label{display:none}.sidebar-group-label{color:#c7d9f5;font-size:10px;padding-left:2px}.sidebar nav button,.side-bottom>button{height:37px;border-radius:7px;padding:0 10px;color:#fff;font-size:14px}.sidebar nav button.active{background:#0052a4;box-shadow:none}.sidebar nav em{background:#c7d9f5;color:#2b5f9d;font-size:9px}.sidebar-sub button{padding-left:42px;font-size:12px}.side-bottom{border:0}.side-bottom>button{display:none}.profile{padding:0;gap:18px}.profile>span{width:42px;height:42px;flex:0 0 42px;font-size:16px}.profile b{font-size:14px;font-weight:500}.profile small{font-size:12px;color:#aebdd0;margin-top:0}.stage{margin-left:var(--sidebar)}
+.sidebar,.stage{transition:transform .22s ease,margin-left .22s ease}.nav-collapsed .sidebar{transform:translateX(-100%)}.nav-collapsed .stage{margin-left:0}.nav-collapsed .topbar{margin-left:0}.top-brand button{border-radius:5px;transition:background .15s ease}.top-brand button:hover{background:#eef3f8}
+.nav-icon{display:block;width:18px;height:18px;object-fit:contain;flex:0 0 18px}.nav-icon-search{width:20px}.nav-icon-case{width:21px;height:16px;flex-basis:21px}
+.dashboard{max-width:1080px;padding:28px 20px 56px}.figma-hero{display:flex;justify-content:space-between;align-items:center}.figma-hero .page-title{margin:0 0 22px}.figma-hero .page-title h1{font-size:23px;font-weight:500;margin:0 0 6px}.figma-hero .page-title p{font-size:10px;color:#8993a1}.primary.compact{height:34px;padding:0 15px;border-radius:4px;background:#00478f;font-size:10px;box-shadow:none}.dashboard .quick-actions{gap:9px;margin-bottom:29px}.dashboard .quick-card{min-height:70px;border:0;border-radius:5px;background:#2f66a4;color:#fff;padding:15px 18px;gap:6px}.dashboard .quick-card:hover{background:#25598f;box-shadow:none}.dashboard .quick-card b{font-size:13px}.dashboard .quick-card span{font-size:9px;color:#dce8f5}.dashboard-label{font-size:12px;color:#41688f;margin:0 0 8px}.dashboard-label.spaced{margin-top:28px}
+.dashboard .market-strip{grid-template-columns:repeat(4,1fr);border:0;border-radius:5px;margin-bottom:28px}.dashboard .market{height:70px;padding:12px 14px}.dashboard .market>span{font-size:8px}.dashboard .market b{font-size:14px;margin-top:7px}.dashboard .market em{font-size:8px}.dashboard .market svg{right:10px;bottom:13px;width:55px;height:20px}.dashboard .kpi-row{border:0;border-radius:5px;margin-bottom:0}.dashboard .stat-mini{justify-content:center;padding:18px 14px;gap:12px}.dashboard .stat-mini>span{font-size:10px;margin:0}.dashboard .stat-mini>b{font-size:18px;color:#1f5ea5}.dashboard .stat-mini b em{font-size:9px;color:#1f5ea5}
+.index-card{padding:26px 42px 20px;margin-bottom:28px;border-radius:12px}.index-card .index-chart{height:250px;margin:0}.index-card .index-legend{margin-top:5px}.active-work{overflow:hidden;margin-bottom:28px}.active-work>.card-head,.figma-briefing>.card-head{padding:20px 25px;border-bottom:1px solid var(--line)}.active-work .card-head h2,.figma-briefing .card-head h2{font-size:14px;margin:0}.active-work-grid{display:grid;grid-template-columns:290px 1fr}.work-donut{display:flex;align-items:center;gap:16px;padding:22px 25px;border-right:1px solid var(--line)}.work-donut .donut-legend{gap:8px}.work-donut .donut-legend-row{font-size:9px}.work-donut .donut-legend-row i{width:7px;height:7px}.work-table{max-height:218px;overflow:auto;scrollbar-width:thin;scrollbar-color:#b8c5d4 #f3f6f9}.work-table table{min-width:650px}.work-table thead{position:sticky;top:0;z-index:2}.work-table th{font-size:8px;padding:11px 12px}.work-table td{font-size:9px;padding:11px 12px}.work-table td b{font-size:9px}.work-table td small{font-size:7px}.work-table .badge{font-size:7px;padding:3px 7px}.work-table::-webkit-scrollbar{width:7px;height:7px}.work-table::-webkit-scrollbar-track{background:#f3f6f9}.work-table::-webkit-scrollbar-thumb{background:#b8c5d4;border-radius:10px;border:2px solid #f3f6f9}
+.figma-briefing{padding:0 25px 12px;margin-bottom:0}.figma-briefing>.card-head{margin:0 -25px;padding-left:25px;padding-right:25px}.figma-briefing .brief{height:65px}.figma-briefing .brief-icon{display:none}.figma-briefing .brief div b{font-size:11px}.figma-briefing .brief div small{font-size:8px}.figma-briefing .badge{font-size:8px}.chatbot{position:fixed;right:32px;bottom:26px;width:64px;height:64px;border:0;border-radius:50%;background:#2b67aa;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 8px 20px #17487535;font-size:10px;z-index:30}.chatbot img{display:block;width:24px;height:24px;object-fit:contain}
+.chat-overlay{position:fixed;inset:0;z-index:70;border:0;background:rgba(7,24,45,.44);cursor:default}.home-chat-modal{position:fixed;z-index:71;left:50%;top:50%;transform:translate(-50%,-50%);width:600px;height:500px;max-width:calc(100vw - 30px);max-height:calc(100vh - 30px);background:#fff;border-radius:16px;padding:17px 30px;box-shadow:0 24px 60px rgba(6,26,52,.27);display:flex;flex-direction:column;animation:pop .18s ease}.home-chat-modal header{height:35px;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}.home-chat-modal h2{font-size:19px;line-height:28px;font-weight:650;margin:0}.home-chat-modal header button{width:30px;height:30px;border:0;border-radius:50%;background:#f1f4f7;color:#687588;font-size:20px;line-height:30px;padding:0}.home-chat-log{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:20px 0 12px;scrollbar-width:thin}.home-chat-message{max-width:72%;padding:6px 8px;font-size:11px;line-height:20px}.home-chat-message.bot{align-self:flex-start;width:252px;background:#f8fafc;border:1px solid #e5eaf1;border-radius:7px 7px 7px 2px}.home-chat-message.user{align-self:flex-end;background:#dce9fb;color:#1a3d6e;border-radius:7px 7px 2px 7px}.home-chat-input{height:35px;border:1px solid #e5eaf1;border-radius:5px;padding:4px 4px 4px 8px;display:flex;align-items:center;gap:5px;flex-shrink:0}.home-chat-input input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:11px;color:#172033}.home-chat-input input::placeholder{color:rgba(23,32,51,.5)}.home-chat-input button{width:23px;height:23px;flex:0 0 23px;border:0;border-radius:5px;background:#003b7a;color:#fff;display:grid;place-items:center;font-size:10px}
+.figma-search-page{max-width:1080px;padding:26px 20px 70px}.figma-search-page .weekly-briefing{padding:0 25px 20px;margin-bottom:22px;border-radius:12px}.figma-search-page .weekly-briefing>.card-head{height:70px;margin:0 -25px;padding:0 25px;border-bottom:1px solid var(--line)}.figma-search-page .weekly-briefing .section-kicker,.figma-search-page .weekly-briefing .card-head p{display:none}.figma-search-page .weekly-briefing .card-head h2{font-size:14px;margin:0}.figma-search-page .weekly-briefing .card-head:after{content:'전체 정보 보기  →';margin-left:auto;color:#55708d;font-size:9px}.figma-search-page .wb-indicators{grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 0}.figma-search-page .wb-indicator{height:62px;border-radius:9px;padding:12px 14px;gap:11px}.figma-search-page .wb-indicator b{font-size:10px}.figma-search-page .wb-indicator span{font-size:9px}.figma-search-page .wb-dir{width:27px;height:27px;flex:0 0 27px}.figma-search-page .wb-news{margin-top:10px}.figma-search-page .wb-news-row{height:42px;padding:0 4px}.figma-search-page .wb-news-row b{font-size:10px}.figma-search-page .wb-news-row span{font-size:8px}.figma-search-page .wb-news-row .badge{font-size:7px;padding:3px 7px}.figma-search-page .hero-search{height:74px;border-radius:11px;margin-bottom:0;padding:0 22px;box-shadow:0 1px 2px #10284408}.figma-search-page .hero-search .icon{font-size:18px}.figma-search-page .hero-search input{font-size:14px}.figma-search-page .reference-chips{margin:18px 0 22px}.figma-search-page .reference-chips button{height:36px;border-radius:18px;padding:0 15px;font-size:10px}.figma-search-page .reference-chips button.active{background:#0c315b;border-color:#0c315b}.figma-search-results{display:grid;gap:14px}.figma-search-results .search-result{display:flex;justify-content:space-between;align-items:center;min-height:128px;padding:20px 22px;margin:0;border-radius:11px}.figma-search-results .search-result>div{flex:1;min-width:0}.figma-search-results .search-result h3{font-size:13px;margin:12px 0 7px}.figma-search-results .search-result p{font-size:10px;margin:0 0 10px}.figma-search-results .search-result small{font-size:8px}.figma-search-results .search-result>button{flex:0 0 auto;margin-left:24px;border:1px solid var(--line);background:#fff;border-radius:7px;padding:9px 12px;font-size:9px;color:#42698f}.search-empty{padding:40px;text-align:center;color:#7c899a;font-size:11px}
+@media(max-width:1050px){.active-work-grid{grid-template-columns:1fr}.work-donut{border-right:0;border-bottom:1px solid var(--line)}.index-card .index-chart{height:auto}.figma-search-page .wb-indicators{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.topbar{margin-left:0}.sidebar{top:0}.dashboard{padding:20px 15px}.figma-hero{align-items:flex-start}.figma-hero .page-title h1{font-size:20px}.dashboard .quick-actions{grid-template-columns:1fr}.dashboard .market-strip{grid-template-columns:1fr 1fr}.index-card{padding:18px}.chatbot{right:18px;bottom:18px}.home-chat-modal{height:70vh;padding:16px 18px}.home-chat-message{max-width:88%}.figma-search-page{padding:20px 15px}.figma-search-page .weekly-briefing{padding-left:15px;padding-right:15px}.figma-search-page .weekly-briefing>.card-head{margin-left:-15px;margin-right:-15px;padding-left:15px;padding-right:15px}.figma-search-page .wb-indicators{grid-template-columns:1fr}.figma-search-results .search-result{align-items:flex-start;flex-direction:column;gap:16px}.figma-search-results .search-result>button{margin-left:0}}
+
+/* Figma search indicator alignment and relevance colors */
+.figma-search-page .wb-indicator .wb-dir{width:27px;height:27px;flex:0 0 27px;display:grid;place-items:center;margin:0;padding:0;border-radius:50%;font-size:10px;line-height:1}
+.figma-search-page .wb-indicator .wb-dir.up{background:#fff0f0;color:#c84449}
+.figma-search-page .wb-indicator .wb-dir.down{background:#eaf8f1;color:#207c56}
+.figma-search-page .wb-indicator>div{flex:1;min-width:0}
+.figma-search-page .wb-indicator>.icon{margin-left:auto;color:#718094}
+.search-result-heading{height:22px;display:flex;align-items:center;gap:8px;margin:0 0 21px}
+.search-result-heading b{font-size:17px;line-height:22px;color:#172033}
+.search-result-heading span{font-size:13px;color:#7d8a9b}
+.searchable-article{cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
+.searchable-article:hover,.searchable-article:focus-visible{border-color:#91afd7;box-shadow:0 5px 16px #234b7c12;outline:0}
+.drawer header{align-items:center}
+.drawer header h2{margin:0}
+.article-drawer{display:flex;flex-direction:column;gap:10px;padding:27px 30px}
+.article-drawer header{height:35px;flex:0 0 35px;padding:0;margin:0;border-bottom:0;align-items:flex-start}
+.article-drawer header h2{max-width:calc(100% - 48px);padding-top:6px;font-size:19px;line-height:28.5px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.article-drawer>h3{height:43px;margin:0;padding-top:25px;font-size:12px;font-weight:400}
+.article-drawer article{min-height:89px;padding:16px 0;grid-template-columns:28px 1fr}
+.article-drawer article p{margin:5px 0;line-height:14.4px}
+.article-drawer footer{margin-top:0}
+
+/* Figma quote creation: both sections expose the same AI document autofill entry. */
+.form-page .quote-autofill-toggle{width:100%;height:44px;margin-bottom:20px;border-radius:8px;font-size:14px;font-weight:400}
+.basic-autofill-open{display:flex;flex-direction:column;gap:20px;padding:22px;margin-bottom:20px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.autofill-open-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.autofill-open-head h3{margin:0;font-size:17px;line-height:24px;letter-spacing:-.28px}
+.autofill-open-head button{border:0;background:none;color:#55708d;font-size:10px;padding:1px}
+.autofill-upload-list{display:flex;flex-direction:column;gap:10px}
+.autofill-upload-row{min-height:50px;display:flex;align-items:center;justify-content:space-between;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff}
+.autofill-upload-row>div{display:flex;flex-direction:column;gap:3px}
+.autofill-upload-row b{font-size:11px;font-weight:500}
+.autofill-upload-row span{font-size:9px;color:#8a94a3}
+.autofill-upload-row>button{height:37px;min-width:96px;padding:0 15px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#3d63a1;font-size:11px;font-weight:600}
+.autofill-upload-row .spinner{width:20px;height:20px;margin:0 28px 0 0;border-width:2px}
+.autofill-generate{width:100%;height:44px;border-radius:8px;box-shadow:none}
+.quote-autofill-open{display:flex;flex-direction:column;gap:20px;padding:22px;margin-bottom:20px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:none}
+.quote-autofill-open>.autofill-open-head{width:100%;padding-bottom:16px;margin:0;border-bottom:1px solid var(--line)}
+.quote-autofill-open>.autofill-open-head h3{font-size:17px;line-height:24px;margin:0;letter-spacing:-.28px}
+.quote-autofill-open .quote-autofill-list{display:flex;flex-direction:column;gap:10px;margin:0;padding:0}
+.quote-autofill-open .quote-autofill-list li{min-height:50px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:#fff}
+.quote-autofill-open .quote-autofill-list li div{gap:3px}
+.quote-autofill-open .quote-autofill-list li b{font-size:11px;font-weight:500}
+.quote-autofill-open .quote-autofill-list li span{font-size:9px;color:#8a94a3}
+.quote-autofill-open .quote-autofill-list li>button{height:37px;min-width:96px;padding:0 15px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#3d63a1;font-size:11px;font-weight:600}
+.quote-autofill-open .quote-autofill-list .spinner{width:20px;height:20px;margin:0 28px 0 0;border-width:2px}
+.quote-autofill-open>.autofill-generate{margin:0}
+.quote-autofill-open .quote-draft-result{display:flex;flex-direction:column;gap:20px;width:100%;padding:0;margin:0;border:0;background:transparent}
+.quote-autofill-open .quote-draft-result table{width:100%;border-collapse:collapse}
+.quote-autofill-open .quote-draft-result th,.quote-autofill-open .quote-draft-result td{height:28px;padding:0 4px;border-bottom:1px solid var(--line);font-size:13px;letter-spacing:.47px}
+.quote-autofill-open .quote-draft-result th{background:#fafbfc;color:#8a95a4;font-weight:600}
+.quote-autofill-open .quote-draft-result th:last-child,.quote-autofill-open .quote-draft-result td:last-child{width:22%;text-align:left}
+.quote-autofill-open .quote-draft-result tbody td{color:#47566a;font-weight:600;background:#fff}
+.quote-autofill-open .quote-draft-result tfoot td{background:#fafbfc;color:#8a95a4;font-weight:600}
+.quote-autofill-open .quote-draft-result tfoot td:last-child b{color:#0052a4;font-size:13px;font-weight:800}
+.quote-autofill-open .apply-draft-button{width:100%;height:44px;margin:0;border-radius:8px;background:#003b7a;box-shadow:none;font-size:14px;font-weight:600}
+.basic-extract-result{display:flex;flex-direction:column;gap:20px;width:100%}
+.basic-extract-result table{width:100%;border-collapse:collapse}
+.basic-extract-result th,.basic-extract-result td{height:28px;padding:0 4px;border-bottom:1px solid var(--line);font-size:13px;letter-spacing:.47px;text-align:left}
+.basic-extract-result th{background:#fafbfc;color:#8a95a4;font-weight:600}
+.basic-extract-result td{color:#47566a;font-weight:600}
+.basic-extract-result th:last-child,.basic-extract-result td:last-child{width:42%}
+.basic-extract-result .apply-draft-button{width:100%;height:44px;margin:0;border-radius:8px;background:#003b7a;box-shadow:none;font-size:14px;font-weight:600}
+
+/* Figma quote creation page header — shared by every autofill state. */
+.form-page{max-width:1080px;padding:24px 20px 70px}
+.form-page>.back{display:flex;align-items:center;height:40px;margin:0 0 5px;padding:0;border:0;background:transparent;color:#738196;font-size:15px;line-height:17px}
+.form-page>.page-title{height:70px;align-items:flex-start;margin:0 0 20px}
+.form-page>.page-title .eyebrow{display:none}
+.form-page>.page-title h1{margin:0;padding-top:7px;font-size:28px;line-height:34px;font-weight:500;letter-spacing:-.84px}
+.form-page>.page-title p{margin:0;padding-top:7px;color:#718094;font-size:14px;line-height:20px}
+.form-page>.page-title>div{display:flex;flex-direction:column}
+.form-page .form-section{border-radius:12px;padding:26px 29px}
+.form-page .form-section>header{gap:15px;padding-bottom:21px;margin-bottom:23px}
+.form-page .form-section>header>span{width:28px;height:28px;flex:0 0 28px}
+.form-page .form-section h2{font-size:17px;line-height:25px}
+.form-page .form-section>header p{font-size:14px;line-height:17px}
+
+/* Figma cargo list (node 64:7795) */
+.figma-case-list{max-width:1080px;padding:24px 20px 70px}
+.figma-case-list>.page-title{height:70px;align-items:flex-start;margin:0 0 18px}
+.figma-case-list>.page-title .eyebrow{display:none}
+.figma-case-list>.page-title h1{margin:0 0 7px;font-size:28px;line-height:34px;font-weight:500;letter-spacing:-.84px}
+.figma-case-list>.page-title p{margin:0;color:#718094;font-size:14px;line-height:20px}
+.figma-case-list .case-create{height:38px;margin-top:4px;padding:0 16px;border-radius:6px;background:#003b7a;box-shadow:none;font-size:12px}
+.figma-case-list>.filters{padding:0;margin:0 0 34px;background:transparent;border:0;box-shadow:none}
+.figma-case-list .searchbox{width:100%;max-width:none;height:74px;padding:0 25px;gap:14px;border:1px solid #cfd9e5;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(16,40,68,.05)}
+.figma-case-list .searchbox .icon{min-width:24px;color:#172033;font-size:24px;font-weight:300;line-height:1}
+.figma-case-list .searchbox input{font-size:17px;line-height:24px;color:#172033}
+.figma-case-list .searchbox input::placeholder{color:#172033;opacity:.58}
+.figma-case-list .chips{gap:7px;margin-top:16px}
+.figma-case-list .chips button{height:34px;padding:0 14px;border-color:#dfe5ed;border-radius:18px;color:#59687b;background:#fff;font-size:12px;font-weight:500}
+.figma-case-list .chips button.active{background:#0b315d;border-color:#0b315d;color:#fff}
+.figma-case-list>.table-card{min-height:734px;border-color:#dbe3ec;border-radius:12px;box-shadow:0 1px 3px rgba(16,40,68,.06);overflow:hidden}
+.figma-case-list .table-summary{height:66px;padding:0 25px;gap:9px;border-bottom:1px solid #e1e7ee}
+.figma-case-list .table-summary b{font-size:17px;line-height:24px;font-weight:650;letter-spacing:-.25px}
+.figma-case-list .table-summary span{padding:3px 8px;border-radius:12px;background:#eef4fb;color:#356398;font-size:11px}
+.figma-case-list .table-summary button{display:flex;align-items:center;gap:8px;color:#607086;font-size:14px}
+.figma-case-list .table-summary button i{font-style:normal;font-size:17px;color:#7b8898}
+.figma-case-list .case-table-scroll{width:100%;overflow-x:auto}
+.figma-case-list table{min-width:950px;table-layout:fixed}
+.figma-case-list th{height:53px;padding:0 17px;background:#fff;border-bottom:1px solid #e3e8ee;color:#8290a2;font-size:11px;letter-spacing:.3px}
+.figma-case-list th:nth-child(1){width:16%}.figma-case-list th:nth-child(2){width:22%}.figma-case-list th:nth-child(3){width:15%}.figma-case-list th:nth-child(4){width:10%}.figma-case-list th:nth-child(5){width:11%}.figma-case-list th:nth-child(6){width:11%}.figma-case-list th:nth-child(7){width:11%}.figma-case-list th:nth-child(8){width:4%}
+.figma-case-list td{height:92px;padding:0 17px;border-bottom:1px solid #e8ecf1;color:#26354a;font-size:13px;vertical-align:middle}
+.figma-case-list td b{font-size:13px;font-weight:600}.figma-case-list td small{margin-top:7px;color:#8793a3;font-size:10px}.figma-case-list td strong{font-size:14px;font-weight:700}
+.figma-case-list td .badge{padding:5px 10px;font-size:10px}.figma-case-list td:last-child{padding-left:4px;color:#78879a;font-size:15px}
+.figma-case-list tbody tr:last-child td{border-bottom:1px solid #e8ecf1}
+@media(max-width:760px){.figma-case-list{padding:20px 15px 60px}.figma-case-list>.page-title{height:auto;min-height:92px}.figma-case-list .case-create{font-size:0;padding:0 11px}.figma-case-list .case-create .icon{font-size:15px}.figma-case-list .searchbox{height:60px}.figma-case-list>.filters{margin-bottom:24px}}
+
+/* Figma cargo detail overview (node 95:3176) */
+.figma-case-detail{min-height:calc(100vh - 74px);background:#f5f7fa}
+.figma-case-detail .case-hero{height:128px;padding:15px 34px 0;background:#fff;border-bottom:1px solid #e5eaf1}
+.figma-case-detail .case-breadcrumb{display:none}
+.figma-case-detail .case-heading{align-items:flex-start;margin:0;min-height:78px}
+.figma-case-detail .case-heading>div:first-child>div{display:flex;align-items:center;gap:8px;height:18px}
+.figma-case-detail .case-heading .badge{padding:3px 8px;font-size:8px}
+.figma-case-detail .case-id{color:#7b8797;font-size:9px;font-weight:700}
+.figma-case-detail .case-heading h1{margin:4px 0 5px;font-size:25px;line-height:30px;font-weight:500;letter-spacing:-.65px}
+.figma-case-detail .case-heading p{margin:0;color:#718094;font-size:11px;line-height:17px}
+.figma-case-detail .quote{width:145px;min-height:70px;padding:0 0 0 32px;border-left:1px solid #edf0f3;text-align:right}
+.figma-case-detail .quote span{display:block;color:#8290a0;font-size:9px}
+.figma-case-detail .quote b{display:block;margin:7px 0 5px;font-size:25px;line-height:28px}
+.figma-case-detail .quote small{color:#8793a2;font-size:8px}
+.figma-case-detail .stepper{height:34px;max-width:650px;margin:0}
+.figma-case-detail .stepper>div{align-items:center}
+.figma-case-detail .stepper>div>span{width:23px;height:23px;font-size:9px}
+.figma-case-detail .stepper>div>b{font-size:10px;margin-left:7px}
+.figma-case-detail .stepper>div>i{width:78px;margin:0 13px}
+.figma-case-detail>.tabs{position:sticky;top:74px;z-index:12;height:42px;padding:0 34px;gap:0;background:#fff;border-bottom:1px solid #e5eaf1;box-shadow:none}
+.figma-case-detail .tab-group{height:42px;display:flex;align-items:center}
+.figma-case-detail .tab-group-label{display:none}
+.figma-case-detail .tab-divider{height:16px;margin:0 7px;border-left:1px solid #e1e6ec}
+.figma-case-detail .tabs button{height:42px;padding:0 12px;border-bottom:2px solid transparent;color:#7c8999;font-size:10px;font-weight:600}
+.figma-case-detail .tabs button.active{color:#155bd7;border-bottom-color:#155bd7}
+.figma-case-detail .workspace-body{max-width:1060px;margin:0 auto;padding:20px 20px 70px}
+.figma-case-detail .overview-grid{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px}
+.figma-case-detail .route-card{height:171px;padding:23px 20px;border-radius:12px}
+.figma-case-detail .route-card .section-kicker,.figma-case-detail .quote-detail>.section-kicker{display:none}
+.figma-case-detail .route-card .card-head h2{margin:0;font-size:16px;font-weight:600}
+.figma-case-detail .route-card .card-head .badge{font-size:8px;padding:4px 8px}
+.figma-case-detail .route-line{height:92px;margin-top:14px;padding:0 28px;align-items:flex-start}
+.figma-case-detail .route-line>div{min-width:62px;padding-top:1px;text-align:center}
+.figma-case-detail .route-line>div>span{width:20px;height:20px;margin:0 auto 13px;background:#edf4fd;color:transparent;border-radius:50%;font-size:0}
+.figma-case-detail .route-line>div>b{font-size:11px;line-height:15px;white-space:normal}
+.figma-case-detail .route-line>div>small{margin-top:4px;font-size:8px}
+.figma-case-detail .route-line i{top:10px;left:calc(50% + 10px);width:calc(100% - 20px);border-top:2px dashed #cfd9e5;background:none}
+.figma-case-detail .quote-detail{height:171px;padding:23px 20px;border-radius:12px;position:relative}
+.figma-case-detail .quote-detail h2{margin:3px 0 7px;font-size:16px;font-weight:600}
+.figma-case-detail .quote-detail strong{display:inline-block;font-size:27px;line-height:34px}
+.figma-case-detail .quote-detail>b{position:absolute;right:20px;top:61px;color:#788597;font-size:8px;font-weight:400}
+.figma-case-detail .quote-detail>b:after{content:' · USD'}
+.figma-case-detail .quote-detail dl{margin:10px 0 0;border-top:1px solid #e5eaf1}
+.figma-case-detail .quote-detail dl div{height:31px;padding:0;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eef1f4}
+.figma-case-detail .quote-detail dl div:last-child{display:none}
+.figma-case-detail .quote-detail dt,.figma-case-detail .quote-detail dd{font-size:8px}
+.figma-case-detail .status-log{grid-column:1/-1;height:181px;margin-top:4px;padding:20px;border-radius:12px}
+.figma-case-detail .status-log .card-head{height:27px;padding-bottom:13px;border-bottom:1px solid #e5eaf1}
+.figma-case-detail .status-log .card-head h2{margin:0;font-size:13px;font-weight:500}
+.figma-case-detail .status-log .card-head>span{padding:4px 8px;border-radius:12px;background:#e8f6ef;color:#8b95a4;font-size:8px}
+.figma-case-detail .status-log>div:not(.card-head){height:39px;display:grid;grid-template-columns:28px 1fr auto;align-items:center;border-bottom:1px solid #f0f2f4}
+.figma-case-detail .status-log>div:not(.card-head)>span{width:19px;height:19px;display:grid;place-items:center;border-radius:50%;background:#e8f6ef;color:#25835a;font-size:8px}
+.figma-case-detail .status-log>div:not(.card-head)>span.warn{background:#fff3e5;color:#c57918}
+.figma-case-detail .status-log>div:not(.card-head)>b{font-size:10px}
+.figma-case-detail .status-log>div:not(.card-head)>small{color:#8994a2;font-size:8px}
+@media(max-width:900px){.figma-case-detail .overview-grid{grid-template-columns:1fr}.figma-case-detail .quote-detail{height:auto}.figma-case-detail .status-log{grid-column:auto}.figma-case-detail .quote{display:none}}
+
+/* Exact Figma list table container (node 64:8185) */
+.badge.violet{background:rgba(106,79,176,.3);color:#6a4fb0}.badge.neutral{background:rgba(154,163,174,.3);color:#9aa3ae}
+.figma-case-list>.table-card{height:734px;min-height:734px}
+.figma-case-list .table-summary{height:62px}
+.figma-case-list .table-summary span{font-size:13px}
+.figma-case-list table{min-width:1016px;table-layout:fixed}
+.figma-case-list th{height:53px;padding:0 12px;color:#424751;font-size:17px;line-height:24px;font-weight:600;letter-spacing:.82px;text-align:center}
+.figma-case-list th:nth-child(1),.figma-case-list th:nth-child(2),.figma-case-list th:nth-child(3),.figma-case-list th:nth-child(4),.figma-case-list th:nth-child(5),.figma-case-list th:nth-child(6){width:16.666%}
+.figma-case-list tbody tr{height:154px}
+.figma-case-list tbody tr{background:#fff;transition:background-color .15s ease}
+.figma-case-list tbody tr:hover{background:#eef5ff}
+.figma-case-list td{height:154px;padding:0 12px;color:#424751;font-size:17px;line-height:27px;text-align:center;vertical-align:middle}
+.figma-case-list td:first-child,.figma-case-list td:nth-child(4){color:#1a1c1d}
+.figma-case-list td b{font-size:17px;font-weight:400}.figma-case-list td small{margin-top:7px;color:#424751;font-size:17px;line-height:27px;font-weight:300}
+.figma-case-list td:nth-child(3) span{display:block}.figma-case-list td strong{font-size:17px;font-weight:400}
+.figma-case-list td .badge{min-width:105px;justify-content:center;padding:7px 18px;font-size:17px;line-height:27px;font-weight:400}
+
+/* Exact detail header and grouped tabs (nodes 95:3380, 97:3760) */
+.figma-case-detail .case-hero{height:175px;padding:17px 42px 0}
+.figma-case-detail .case-heading{min-height:89px}
+.figma-case-detail .case-heading>div:first-child{width:auto}
+.figma-case-detail .case-heading>div:first-child>div{height:17px;gap:7px}
+.figma-case-detail .case-heading .badge{padding:3px 6px;font-size:10px;line-height:10px}
+.figma-case-detail .case-id{font-size:10px;line-height:12px}
+.figma-case-detail .case-heading h1{margin:5px 0 7px;font-size:30px;line-height:34px;font-weight:600}
+.figma-case-detail .case-heading p{font-size:14px;line-height:17px}
+.figma-case-detail .quote{width:146px;min-height:88px;padding-left:28px}
+.figma-case-detail .quote span{font-size:14px;line-height:17px}
+.figma-case-detail .quote b{margin:5px 0 3px;font-size:30px;line-height:43px}
+.figma-case-detail .quote small{font-size:10px;line-height:17px}
+.figma-case-detail .stepper{height:56px;max-width:959px;padding-top:1px}
+.figma-case-detail .stepper>div{flex:1;min-width:0}
+.figma-case-detail .stepper>div>span{width:28px;height:28px;flex:0 0 28px;font-size:11px}
+.figma-case-detail .stepper>div>b{margin-left:7px;font-size:14px;line-height:17px;white-space:nowrap}
+.figma-case-detail .stepper>div>i{flex:1;width:auto;min-width:25px;margin:0 10px;height:1px}
+.figma-case-detail>.tabs{height:49px;padding:0 36px;gap:25px}
+.figma-case-detail .tab-group{height:49px;gap:18px}
+.figma-case-detail .tab-group-label{display:block;color:#9aa7b8;font-size:11px;line-height:14px;font-weight:800;letter-spacing:.6px;white-space:nowrap}
+.figma-case-detail .tab-divider{height:18px;margin:0;border-left:1px solid #e5eaf1}
+.figma-case-detail .tabs button{height:49px;padding:0;border-bottom:2px solid transparent;color:#6f7c8e;font-size:14px;line-height:17px;font-weight:700}
+.figma-case-detail .tabs button.active{color:#1456b3;border-bottom-color:#145ed0}
+
+/* Prevent Figma overview labels from breaking character-by-character. */
+.figma-case-detail .route-line>div.border-stage{min-width:142px}
+.figma-case-detail .route-line>div.border-stage>b{white-space:pre-line;word-break:keep-all;overflow:visible}
+.figma-case-detail .route-line>div.border-stage>b>span{white-space:nowrap}
+.figma-case-detail .route-line>div.border-stage>small{white-space:nowrap}
+.figma-case-detail .status-log .card-head>span{min-width:116px;white-space:nowrap;text-align:center;word-break:keep-all}
+.figma-case-detail .status-log>div:not(.card-head)>small{min-width:128px;white-space:nowrap;text-align:right;word-break:keep-all}
+
+/* Figma quote validation body (node 98:4061); detail header/tabs stay shared. */
+.figma-case-detail .validation>.validation-title{display:none}
+.figma-case-detail .validation>.result-card{min-height:80px;margin:0 0 22px;padding:18px 22px;border:1px solid #eadfce;border-radius:10px;background:#fffdfa;box-shadow:none}
+.figma-case-detail .validation .result-main{align-items:flex-start}
+.figma-case-detail .validation .result-icon{display:none}
+.figma-case-detail .validation .result-main .badge{padding:3px 7px;font-size:9px}
+.figma-case-detail .validation .result-main h2{margin:7px 0 5px;font-size:15px;line-height:21px;font-weight:500}
+.figma-case-detail .validation .result-main p{margin:0;font-size:9px;line-height:14px;color:#8994a2}
+.figma-case-detail .validation .result-main p br{display:none}
+.figma-case-detail .validation .result-price{display:none}
+.figma-case-detail .validation .analysis-grid{grid-template-columns:minmax(0,1fr) 218px;gap:13px;margin-bottom:22px}
+.figma-case-detail .validation .comparison{min-height:262px;padding:18px 20px;border-radius:10px}
+.figma-case-detail .validation .comparison .section-kicker,.figma-case-detail .validation .why>.section-kicker{display:none}
+.figma-case-detail .validation .comparison .card-head h2{margin:0;font-size:15px;line-height:21px}
+.figma-case-detail .validation .comparison .more{display:none}
+.figma-case-detail .validation .legend{margin:4px 0 0;font-size:7px}
+.figma-case-detail .validation .chart{height:102px;margin-top:0}
+.figma-case-detail .validation .compare-note{min-height:44px;margin:0;padding:10px;border-radius:6px;background:#f5f8fc}
+.figma-case-detail .validation .compare-note>span{display:none}
+.figma-case-detail .validation .compare-note b{font-size:8px}.figma-case-detail .validation .compare-note p{font-size:7px;margin-top:3px}
+.figma-case-detail .validation .comparison footer{margin-top:10px;padding-top:10px}
+.figma-case-detail .validation .comparison footer b{font-size:8px}.figma-case-detail .validation .comparison footer span{font-size:7px}
+.figma-case-detail .validation .why{min-height:262px;padding:18px 20px;border-radius:10px}
+.figma-case-detail .validation .why h2{margin:0;font-size:15px;line-height:21px}
+.figma-case-detail .validation .match-score{margin:16px 0 10px}
+.figma-case-detail .validation .match-score>b{font-size:37px}.figma-case-detail .validation .match-score>span{font-size:14px}
+.figma-case-detail .validation .why li{grid-template-columns:20px 1fr auto;padding:10px 0;font-size:9px}
+.figma-case-detail .validation .why>p{display:none}
+.figma-case-detail .validation>.factor-heading,.figma-case-detail .validation>.factors{display:none}
+.figma-case-detail .validation .causal-analysis{margin:0 0 27px;padding:20px;border-radius:10px}
+.figma-case-detail .validation .causal-analysis>.section-kicker{display:none}
+.figma-case-detail .validation .causal-analysis h2{margin:0 0 15px;font-size:18px;line-height:22px}
+.figma-case-detail .validation .causal-analysis .causal-box{padding:10px;margin:0 0 10px;border-radius:7px}
+.figma-case-detail .validation .causal-analysis .causal-box small{font-size:14px;line-height:18px}
+.figma-case-detail .validation .causal-analysis .causal-box p{font-size:10px;line-height:15px}
+.figma-case-detail .validation .causal-analysis>.doc-note{margin:10px 0 0;font-size:14px;line-height:19px;color:#8490a1}
+.figma-case-detail .validation .ai-summary{min-height:223px;margin:0;padding:20px 24px;border-radius:11px;background:#2b5f9d;box-shadow:0 10px 11px rgba(9,39,74,.13)}
+.figma-case-detail .validation .ai-label{gap:9px}.figma-case-detail .validation .ai-label>span{width:29px;height:29px;border-radius:8px}
+.figma-case-detail .validation .ai-label small{display:none}.figma-case-detail .validation .ai-label h2{margin:0;font-size:18px;line-height:22px}
+.figma-case-detail .validation .ai-summary>p{margin:15px 0 20px;font-size:14px;line-height:18px;color:#d9e4f1}
+.figma-case-detail .validation .next-action{min-height:52px;padding:10px 12px;border-radius:7px}
+.figma-case-detail .validation .next-action b{font-size:14px}.figma-case-detail .validation .next-action span{font-size:11px}
+.figma-case-detail .validation .next-action button{min-width:118px;font-size:11px}
+.figma-case-detail .validation .disclaimer{display:none}
+@media(max-width:900px){.figma-case-detail .validation .analysis-grid{grid-template-columns:1fr}.figma-case-detail .validation .why{display:block}}
+
+/* Exact validation comparison frame (node 98:5247) */
+.figma-case-detail .validation .result-card:after{display:none!important;content:none!important}
+.figma-case-detail .validation>.result-card{min-height:113px;padding:15px 28px;background:linear-gradient(163deg,#fff9ef 8%,#fff 58%);overflow:hidden}
+.figma-case-detail .validation .result-main .badge{font-size:11px;padding:5px 7px}
+.figma-case-detail .validation .result-main h2{margin:5px 0 7px;font-size:20px;line-height:26px}
+.figma-case-detail .validation .result-main p{font-size:13px;line-height:16px}
+.figma-case-detail .validation .analysis-grid{grid-template-columns:minmax(0,2.63fr) minmax(250px,1fr);gap:14px;align-items:stretch}
+.figma-case-detail .validation .comparison{height:329px;min-height:329px;padding:19px;border-radius:10px}
+.figma-case-detail .validation .comparison .card-head{height:26px}
+.figma-case-detail .validation .comparison .card-head h2{font-size:18px;line-height:22px}
+.figma-case-detail .validation .comparison .card-head h2{font-size:0}.figma-case-detail .validation .comparison .card-head h2:after{content:'코레일 내부 유사 비교';font-size:18px;line-height:22px}
+.figma-case-detail .validation .legend{height:19px;margin:0;display:flex;align-items:flex-start;justify-content:flex-end;gap:13px;font-size:7px}
+.figma-case-detail .validation .chart{height:126px;margin:0 6px;padding-top:6px}
+.figma-case-detail .validation .chart .current-label b{font-size:14px}
+.figma-case-detail .validation .chart .axis{top:49px}
+.figma-case-detail .validation .chart .ticks{top:64px;font-size:6px}
+.figma-case-detail .validation .chart .distribution{top:85px;font-size:8px}
+.figma-case-detail .validation .compare-note{height:49px;min-height:49px;padding:9px 10px}
+.figma-case-detail .validation .compare-note b{font-size:8px;line-height:12px}.figma-case-detail .validation .compare-note p{font-size:7px;line-height:11px}
+.figma-case-detail .validation .comparison footer{height:50px;margin-top:13px;padding-top:12px;grid-template-columns:repeat(4,1fr)}
+.figma-case-detail .validation .comparison footer div{display:flex;flex-direction:column}
+.figma-case-detail .validation .comparison footer span{order:-1;margin:0 0 3px;font-size:6px}.figma-case-detail .validation .comparison footer b{font-size:8px}
+.figma-case-detail .validation .why{height:329px;min-height:329px;padding:27px;border-radius:13px}
+.figma-case-detail .validation .why h2{font-size:19px;line-height:23px}
+.figma-case-detail .validation .match-score{margin:23px 0 22px}
+.figma-case-detail .validation .match-score>b{font-size:48px;line-height:44px}
+.figma-case-detail .validation .match-score>span{font-size:15px}.figma-case-detail .validation .match-score small{font-size:10px}
+.figma-case-detail .validation .why li{height:43px;padding:11px 0;grid-template-columns:20px 1fr auto;font-size:10px}
+@media(max-width:900px){.figma-case-detail .validation .analysis-grid{grid-template-columns:1fr}.figma-case-detail .validation .comparison,.figma-case-detail .validation .why{height:auto;min-height:329px}}
+
+/* Exact causal analysis + validation summary stack (node 98:5865) */
+.figma-case-detail .validation .causal-analysis{position:relative;min-height:217px;margin:0 0 27px;padding:20px;display:flex;flex-direction:column;gap:20px;border:1px solid #e5eaf1;border-radius:10px;background:#fff;box-shadow:0 1px 1px rgba(16,40,68,.03)}
+.figma-case-detail .validation .causal-analysis:before{content:'참고 정보 보기  →';position:absolute;top:22px;right:20px;color:#55708d;font-size:14px;line-height:17px;white-space:nowrap}
+.figma-case-detail .validation .causal-analysis:before{cursor:pointer;pointer-events:auto}
+.figma-case-detail .validation .causal-analysis h2{height:22px;margin:0;padding:0;font-size:18px;line-height:22px;font-weight:600;letter-spacing:-.25px}
+.figma-case-detail .validation .causal-analysis .causal-box{min-height:62px;margin:0;padding:10px;display:flex;align-items:flex-start;gap:9px;border-radius:7px;background:#f5f8fc}
+.figma-case-detail .validation .causal-analysis .causal-box>.icon{width:16px;min-width:16px;height:18px;font-size:15px;color:#377fd7}
+.figma-case-detail .validation .causal-analysis .causal-box small{display:block;margin:0 0 7px;color:#5b7391;font-size:14px;line-height:18px;font-weight:800;letter-spacing:.34px}
+.figma-case-detail .validation .causal-analysis .causal-box p{margin:0;color:#4a5b70;font-size:10px;line-height:15px;white-space:normal}
+.figma-case-detail .validation .causal-analysis>.doc-note{height:19px;margin:-10px 0 0;display:block;color:#8490a1;font-size:14px;line-height:19px;white-space:nowrap}
+.figma-case-detail .validation .causal-analysis>.doc-note .icon{display:none}
+.figma-case-detail .validation .ai-summary{position:relative;width:100%;height:223px;min-height:223px;margin:0;padding:21px 24px;border-radius:11px;background:#2b5f9d;box-shadow:0 10px 11px rgba(9,39,74,.13)}
+.figma-case-detail .validation .ai-label{height:29px;margin:0;display:flex;align-items:center;gap:9px}
+.figma-case-detail .validation .ai-label>span{width:29px;height:29px;flex:0 0 29px;border-radius:8px;background:rgba(255,255,255,.2)}
+.figma-case-detail .validation .ai-label h2{margin:0;color:#fff;font-size:18px;line-height:22px;font-weight:600}
+.figma-case-detail .validation .ai-summary>p{height:36px;margin:15px 0 27px;color:#d9e4f1;font-size:14px;line-height:18px;font-weight:500;overflow:hidden}
+.figma-case-detail .validation .ai-summary mark{padding:0;border:0;background:transparent;color:inherit}
+.figma-case-detail .validation .next-action{width:100%;height:55px;min-height:55px;margin:0;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(255,255,255,.07);border-radius:7px;background:rgba(255,255,255,.05)}
+.figma-case-detail .validation .next-action>div{display:flex;flex-direction:column;gap:10px}
+.figma-case-detail .validation .next-action b{color:#fff;font-size:14px;line-height:13px}
+.figma-case-detail .validation .next-action span{margin:0;color:#9eb6d0;font-size:11px;line-height:11px}
+.figma-case-detail .validation .next-action button{width:118px;height:29px;padding:0;border:0;border-radius:5px;background:#fff;color:#154e91;font-size:11px;font-weight:600;box-shadow:none}
+.figma-case-detail .validation .next-action button .icon{display:none}
+.figma-case-detail .validation .next-action-buttons{margin-left:auto;display:flex;align-items:center;gap:8px}
+.figma-case-detail .validation .next-action-buttons button{width:auto;min-width:104px;height:32px;padding:0 13px;border-radius:6px;white-space:nowrap}
+.figma-case-detail .validation .next-action-buttons .defer-quote{border:1px solid rgba(255,255,255,.38);background:transparent;color:#fff;font-weight:600}
+.figma-case-detail .validation .next-action-buttons .defer-quote:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+.figma-case-detail .validation .next-action-buttons button:not(.defer-quote){min-width:118px;background:#fff;color:#154e91}
+
+/* Exact internal quote price chart coordinates (node 98:5020) */
+.figma-case-detail .validation .chart{position:relative;width:calc(100% - 12px);height:126px;margin:0 6px;padding:0}
+.figma-case-detail .validation .chart .current-label{top:5px;transform:translateX(-50%);z-index:3}
+.figma-case-detail .validation .chart .current-label b{font-size:14px;line-height:14px;white-space:nowrap}
+.figma-case-detail .validation .chart .current-label span{display:block;margin-top:4px;font-size:6px;line-height:9px}
+.figma-case-detail .validation .chart .axis{left:0;right:0;top:49px;height:2px;background:#d9e0e8}
+.figma-case-detail .validation .chart .range{left:24%;width:38%;height:10px;top:-4px;border-radius:5px;background:#dce8f7}
+.figma-case-detail .validation .chart .median{top:-7px;width:2px;height:15px;background:#4778b7}
+.figma-case-detail .validation .chart .history-dot{top:0!important;width:8px;height:8px;border:1.5px solid #6386b1;transform:translate(-50%,-50%);background:#fff}
+.figma-case-detail .validation .chart .current-mark{top:0;transform:translate(-50%,-11px);font-size:10px;line-height:15px;color:#d78217}
+.figma-case-detail .validation .chart .ticks{top:63px;left:0;right:0;height:10px;font-size:6px;line-height:10px;color:#9aa3ae}
+.figma-case-detail .validation .chart .distribution{top:85px;left:0;right:0;height:30px;border-top:1px solid #aec1d7}
+.figma-case-detail .validation .chart .distribution span{left:0!important;width:100%!important;padding-top:5px;border:0;text-align:center;font-size:8px;line-height:10px;color:#6580a0}
+
+/* Figma quote confirmation modal (node 100:8057) */
+.figma-case-detail~.overlay,.figma-case-detail .overlay{background:rgba(245,247,250,.88);backdrop-filter:blur(1px)}
+.figma-case-detail .modal{width:410px;min-height:262px;padding:30px;border-radius:14px;background:#fff;box-shadow:0 24px 30px rgba(6,26,52,.27)}
+.figma-case-detail .modal-icon{width:47px;height:47px;margin:0 auto;border-radius:50%;background:#e8f6ef;color:#248059;font-size:20px;line-height:30px}
+.figma-case-detail .modal h2{height:46px;margin:0;padding-top:19px;color:#172033;font-size:17px;line-height:27px;font-weight:600}
+.figma-case-detail .modal p{height:44px;margin:0;padding-top:10px;color:#7c8899;font-size:11px;line-height:17px;font-weight:500}
+.figma-case-detail .modal>div{height:65px;margin:0;padding-top:23px;display:flex;align-items:flex-start;justify-content:center;gap:8px}
+.figma-case-detail .modal>div button{height:42px;padding:0 18px;border-radius:8px;font-size:14px;line-height:21px;font-weight:400;box-shadow:none}
+.figma-case-detail .modal>div .secondary{border:1px solid #e5eaf1;background:#fff;color:#3e4c60}
+.figma-case-detail .modal>div .primary{border:1px solid transparent;background:#003b7a;color:#fff}
+.figma-case-detail .tabs button:disabled{color:#b4bdc9;cursor:not-allowed;opacity:.72}
+.figma-case-detail .tabs button:disabled:hover{border-bottom-color:transparent}
+
+/* Figma reference-information tab (node 98:5529). */
+.figma-case-detail .workspace-body:has(.figma-reference-page){padding-top:27px}
+.figma-reference-page{width:100%}
+.figma-reference-page .reference-toolbar{width:100%;height:39px;margin:0 0 21px;display:flex;align-items:flex-start;justify-content:space-between}
+.figma-reference-page .reference-chips{margin:0;display:flex;align-items:center;gap:4px;flex-wrap:nowrap}
+.figma-reference-page .reference-chips button{height:38px;padding:0 15px;border:1px solid #e5eaf1;border-radius:19px;background:#fff;color:#667487;font-size:12px;line-height:18px;font-weight:400;box-shadow:none;white-space:nowrap}
+.figma-reference-page .reference-chips button.active{border-color:#102e54;background:#102e54;color:#fff}
+.figma-reference-page .reference-sort{height:38px;padding:0;border:0;background:transparent;color:#55708d;font-size:14px;line-height:17px;font-weight:400;white-space:nowrap}
+.figma-reference-page .news-list{width:100%;display:flex;flex-direction:column;gap:21px}
+.figma-reference-page .news-card{width:100%;height:145px;min-height:145px;padding:21px 20px;display:flex;align-items:center;justify-content:space-between;border:1px solid #e5eaf1;border-radius:12px;background:#fff;text-align:left;box-shadow:0 1px 1px rgba(16,40,68,.03)}
+.figma-reference-page .news-card:hover{border-color:#a9bed8;background:#fbfdff;box-shadow:0 5px 16px rgba(35,75,124,.08)}
+.figma-reference-page .news-card>div{height:101px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
+.figma-reference-page .news-card>.icon{display:none}
+.figma-reference-page .reference-relevance{height:22px;padding:4px 8px;display:inline-flex;align-items:center;gap:5px;border-radius:21px;font-size:9px;line-height:14px;font-weight:800;white-space:nowrap}
+.figma-reference-page .reference-relevance i{width:5px;height:5px;display:block;border-radius:50%;background:currentColor}
+.figma-reference-page .reference-relevance.high{background:#fff0f0;color:#c84449}
+.figma-reference-page .reference-relevance.medium{background:rgba(189,114,23,.3);color:#bd7217}
+.figma-reference-page .reference-relevance.low{background:#eaf8f1;color:#238164}
+.figma-reference-page .news-card h3{margin:10px 0 0;color:#172033;font-size:13px;line-height:20px;font-weight:400}
+.figma-reference-page .news-card p{margin:5px 0 0;color:#738093;font-size:10px;line-height:15px;font-weight:400}
+.figma-reference-page .news-card small{margin-top:7px;color:#929ba8;font-size:8px;line-height:12px;font-weight:400}
+@media(max-width:1050px){.figma-reference-page .reference-toolbar{height:auto;gap:12px;align-items:flex-end}.figma-reference-page .reference-chips{flex-wrap:wrap}.figma-reference-page .news-card{height:auto;min-height:145px}.figma-reference-page .news-card>div{height:auto;min-height:101px}}
+
+/* 실제 서비스는 다중 사용자 로그인/로그아웃이 필요해 이 바를 항상 노출한다(데모에는 로그아웃 동선이 없어 숨겨져 있었음) */
+.auth-status{display:flex}
+
+/* 데모의 압축 검증 레이아웃은 이 정보를 causal-analysis 카드로 대체하지만 우리 컴포넌트엔 그 카드가
+   없다. 대체 없이 숨기면 정보 손실이라 유사도 가중치·MVP 휴리스틱 고지문과 시장요인 카드를 유지한다. */
+.figma-case-detail .validation .why>p{display:block}
+.figma-case-detail .validation .disclaimer{display:block}
+.figma-case-detail .validation>.factor-heading{display:flex}
+.figma-case-detail .validation>.factors{display:grid}

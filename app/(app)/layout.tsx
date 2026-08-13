@@ -16,6 +16,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [checked, setChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -53,11 +54,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="app">
+    <div className={`app${navCollapsed ? ' nav-collapsed' : ''}`}>
       <Sidebar />
       <div className="stage">
         <AuthStatus />
-        <Topbar />
+        <Topbar collapsed={navCollapsed} toggleNav={() => setNavCollapsed((v) => !v)} />
         <main>{children}</main>
       </div>
       <AppAssistantWidget />

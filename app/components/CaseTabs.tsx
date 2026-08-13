@@ -10,7 +10,13 @@ interface TabGroup {
 
 const TAB_GROUPS: TabGroup[] = [
   { label: null, items: [{ segment: '', label: '개요' }] },
-  { label: '운임 인텔리전스', items: [{ segment: '/validation', label: '견적 검증' }] },
+  {
+    label: '운임 인텔리전스',
+    items: [
+      { segment: '/validation', label: '견적 검증' },
+      { segment: '/reference', label: '참고정보' },
+    ],
+  },
   {
     label: '업무 연결',
     items: [

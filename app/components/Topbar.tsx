@@ -2,17 +2,16 @@
 
 import { detectAnomaly, SERIES } from '../lib/marketData';
 
-export function Topbar() {
+export function Topbar({ collapsed, toggleNav }: { collapsed: boolean; toggleNav: () => void }) {
   const usdKrw = detectAnomaly(SERIES.usdKrw);
   const todayLabel = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   return (
     <header className="topbar">
-      <div>
-        <b>국제복합운송 견적 검증·업무지원</b>
-        <span className="live">
-          <i />
-          시장 데이터 업데이트됨
-        </span>
+      <div className="top-brand">
+        <button type="button" aria-label={collapsed ? '사이드 메뉴 펼치기' : '사이드 메뉴 접기'} aria-expanded={!collapsed} onClick={toggleNav}>
+          ☰
+        </button>
+        <img className="korail-logo" src="/korail-link-logo.svg" alt="KORAIL LINK" />
       </div>
       <div className="top-actions">
         <div className="fx">
@@ -22,12 +21,6 @@ export function Topbar() {
             {usdKrw.changePct.toFixed(1)}%
           </span>
         </div>
-        <button className="circle" type="button" aria-label="알림">
-          <span className="icon" aria-hidden>
-            ♢
-          </span>
-          {usdKrw.isAnomaly && <i />}
-        </button>
         <span className="date">{todayLabel}</span>
       </div>
     </header>

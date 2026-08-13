@@ -12,6 +12,7 @@
 /.vinext/
 /out/
 /build
+/dist
 
 # cloudflare
 /.wrangler/

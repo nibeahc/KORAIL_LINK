@@ -38,7 +38,7 @@ export default function CaseValidationPage() {
   }
 
   return (
-    <div className="case-workspace">
+    <div className="case-workspace figma-case-detail">
       <CaseHeader item={item} />
       <CaseTabs caseId={item.id} />
       <div className="workspace-body">

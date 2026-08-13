@@ -56,8 +56,8 @@ export default function SearchPage() {
   }, [query, category, liveNews]);
 
   return (
-    <div className="page search-page">
-      <PageTitle eyebrow="INFORMATION HUB" title="통합 정보 검색" desc="과거 견적과 시장정보를 한 번에 검색하세요." />
+    <div className="page search-page figma-search-page">
+      <PageTitle eyebrow="MARKET & INFORMATION" title="시황·정보 검색" desc="시장지표 이상탐지와 국제물류 참고정보를 한 곳에서 확인하세요." />
 
       {translationMessage && <div className="notice"><Icon name="info" /><span>{translationMessage}</span></div>}
 

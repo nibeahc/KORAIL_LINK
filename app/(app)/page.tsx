@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const processed = cases.filter((c) => c.status === 'quote_confirmed' || c.status === 'contracted' || c.status === 'settlement').length;
   const progressPct = cases.length ? Math.round((processed / cases.length) * 100) : 0;
   const contractPending = cases.filter((c) => c.status === 'contracted').length;
+  const documentPending = contractPending;
   const settlementPending = cases.filter((c) => c.status === 'settlement').length;
 
   const compositeIndex = useMemo(() => buildCompositeIndex(), []);
@@ -122,32 +123,36 @@ export default function DashboardPage() {
 
   return (
     <div className="page dashboard">
-      <PageTitle eyebrow="HOME" title="좋은 아침입니다" desc="오늘 확인이 필요한 견적과 국제물류 변동 사항을 정리했어요." />
+      <div className="figma-hero">
+        <PageTitle title="좋은 아침입니다" desc="오늘 확인이 필요한 견적과 국제물류 변동 사항을 정리했어요." />
+        <Link href="/quotes/new" className="primary compact">
+          <Icon name="spark" /> AI 견적 생성
+        </Link>
+      </div>
 
       <div className="quick-actions">
-        <Link href="/quotes/new" className="quick-card accent">
-          <Icon name="spark" />
-          <b>견적 생성</b>
-          <span>AI가 구간별 원가로 추천</span>
-        </Link>
-        <Link href="/cases" className="quick-card">
-          <Icon name="contract" />
+        <Link href="/contracts" className="quick-card">
           <b>계약 {contractPending}건 대기</b>
           <span>전자서명 확인 필요</span>
         </Link>
-        <Link href="/cases" className="quick-card">
-          <Icon name="bill" />
+        <Link href="/documents" className="quick-card">
+          <b>문서 {documentPending}건 대기</b>
+          <span>AI 추출 결과 확인 필요</span>
+        </Link>
+        <Link href="/settlements" className="quick-card">
           <b>정산 {settlementPending}건 대기</b>
           <span>Invoice 대조 필요</span>
         </Link>
       </div>
 
+      <h2 className="dashboard-label">환율</h2>
       <div className="market-strip">
         {INDICATORS.map((ind) => (
           <MarketCard key={ind} indicator={ind} onClick={openDrawer} liveValue={liveRates[ind]} />
         ))}
       </div>
 
+      <h2 className="dashboard-label">운송 현황</h2>
       <div className="kpi-row">
         <div className="stat-mini">
           <span className="stat-mini-icon">
@@ -187,16 +192,39 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="chart-row">
-        <section className="card chart-card">
-          <div className="card-head">
-            <div>
-              <span className="section-kicker">CASE STATUS</span>
-              <h2>Case 상태별 분포</h2>
-            </div>
-          </div>
-          <div className="donut-body">
-            <DonutChart segments={statusSegments} />
+      <h2 className="dashboard-label spaced">KORAIL LINK 종합 지수</h2>
+      <section className="card chart-card index-card">
+        <IndexChart monthly={compositeIndex} todayPoints={todayPoints} />
+        <div className="legend index-legend">
+          <span>
+            <i className="legend-band" />
+            정상범위(±1σ)
+          </span>
+          <span>
+            <i className="legend-dot" style={{ background: '#1f8a5b' }} />
+            정상
+          </span>
+          <span>
+            <i className="legend-dot" style={{ background: '#d78516' }} />
+            다소 높음
+          </span>
+          <span>
+            <i className="legend-dot" style={{ background: '#d93d42' }} />
+            높음
+          </span>
+        </div>
+      </section>
+
+      <section className="card active-work">
+        <div className="card-head">
+          <h2>진행 중인 업무</h2>
+          <Link href="/cases" className="text-btn">
+            전체 업무 보기 <Icon name="arrow" />
+          </Link>
+        </div>
+        <div className="active-work-grid">
+          <div className="work-donut">
+            <DonutChart segments={statusSegments} size={132} thickness={22} />
             <div className="donut-legend">
               {statusSegments
                 .filter((s) => s.value > 0)
@@ -209,40 +237,48 @@ export default function DashboardPage() {
                 ))}
             </div>
           </div>
-        </section>
-
-        <section className="card chart-card">
-          <div className="card-head">
-            <div>
-              <span className="section-kicker">MARKET INDEX</span>
-              <h2>KORAIL LINK 종합 지수</h2>
-              <p>과거 견적을 노선별로 표준화(σ)해 만든 자체 지수 · 외부 공식 지수 아님</p>
-            </div>
+          <div className="work-table" aria-label={`진행 중인 업무 ${cases.length}건`}>
+            <table>
+              <thead>
+                <tr>
+                  <th>CASE 번호</th>
+                  <th>화주 / 품목</th>
+                  <th>노선</th>
+                  <th>견적</th>
+                  <th>상태</th>
+                  <th>등록일</th>
+                </tr>
+              </thead>
+              <tbody>
+                {verdicts.map(({ item: c }) => (
+                  <tr key={c.id}>
+                    <td>
+                      <Link href={`/cases/${c.id}`}>{c.caseNumber}</Link>
+                    </td>
+                    <td>
+                      <b>{c.shipperName}</b>
+                      <small>
+                        {c.cargoType} · {c.containerType}
+                      </small>
+                    </td>
+                    <td>{c.route}</td>
+                    <td>
+                      <b>${c.price.toLocaleString()}</b>
+                    </td>
+                    <td>
+                      <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
+                    </td>
+                    <td>{new Date(c.createdAt).toLocaleDateString('ko-KR')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <IndexChart monthly={compositeIndex} todayPoints={todayPoints} />
-          <div className="legend index-legend">
-            <span>
-              <i className="legend-band" />
-              정상범위(±1σ)
-            </span>
-            <span>
-              <i className="legend-dot" style={{ background: '#1f8a5b' }} />
-              정상
-            </span>
-            <span>
-              <i className="legend-dot" style={{ background: '#d78516' }} />
-              다소 높음
-            </span>
-            <span>
-              <i className="legend-dot" style={{ background: '#d93d42' }} />
-              높음
-            </span>
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
       <div className="home-grid">
-        <section className="card briefing">
+        <section className="card briefing figma-briefing">
           <div className="card-head">
             <div>
               <span className="section-kicker">
@@ -320,40 +356,6 @@ export default function DashboardPage() {
           </Link>
         </aside>
       </div>
-
-      <section className="card ongoing">
-        <div className="card-head">
-          <div>
-            <span className="section-kicker">ACTIVE CASES</span>
-            <h2>진행 중인 견적</h2>
-          </div>
-          <Link href="/cases" className="text-btn">
-            전체 보기 <Icon name="arrow" />
-          </Link>
-        </div>
-        <div className="case-cards">
-          {verdicts.slice(0, 3).map(({ item: c, verdict }) => (
-            <Link href={`/cases/${c.id}`} className="case-card" key={c.id}>
-              <div>
-                <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
-                <span className="case-no">{c.caseNumber}</span>
-              </div>
-              <h3>{c.route}</h3>
-              <p>
-                {c.shipperName} · {c.containerType}
-              </p>
-              <footer>
-                <span>코레일</span>
-                <b>${c.price.toLocaleString()}</b>
-              </footer>
-              <div className="case-verdict">
-                <Badge tone={VERDICT_TONE[verdict.verdict]}>{VERDICT_LABEL[verdict.verdict]}</Badge>
-              </div>
-              <i className="risk-line" style={{ background: TONE_COLOR[VERDICT_TONE[verdict.verdict]] }} />
-            </Link>
-          ))}
-        </div>
-      </section>
 
       <EvidenceDrawer analysis={drawer} onClose={() => setDrawer(null)} />
     </div>

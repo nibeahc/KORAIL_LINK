@@ -13,6 +13,12 @@ const CASE_SUB_ITEMS: [string, string][] = [
   ['/settlement', '정산'],
 ];
 
+const NAV_ICON_SRC: Record<string, string> = { home: '/icons/nav-home.svg', search: '/icons/nav-search.svg', case: '/icons/nav-shipment.svg' };
+
+function NavIcon({ name }: { name: 'home' | 'search' | 'case' }) {
+  return <img className={`nav-icon nav-icon-${name}`} src={NAV_ICON_SRC[name]} alt="" aria-hidden />;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { cases } = useCases();
@@ -33,6 +39,10 @@ export function Sidebar() {
   const shipmentActive = pathname.startsWith('/cases');
   const open = manualOpen === null ? shipmentActive : manualOpen;
   const needsAttention = cases.filter((c) => c.status === 'needs_review' || c.status === 'pending_validation').length;
+  const contractCount = cases.filter((c) => c.status === 'contracted').length;
+  const documentCount = contractCount;
+  const settlementCount = cases.filter((c) => c.status === 'settlement').length;
+  const subCounts: Record<string, number> = { 계약: contractCount, 문서: documentCount, 정산: settlementCount };
 
   const displayName = profile?.fullName ?? email?.split('@')[0] ?? '게스트';
 
@@ -50,13 +60,10 @@ export function Sidebar() {
         <div className="sidebar-group">
           <span className="sidebar-group-label">리서치</span>
           <Link href="/" className={pathname === '/' ? 'active' : ''}>
-            <Icon name="home" />홈
-          </Link>
-          <Link href="/market" className={pathname === '/market' ? 'active' : ''}>
-            <Icon name="search" />시황
+            <NavIcon name="home" />홈
           </Link>
           <Link href="/search" className={pathname === '/search' ? 'active' : ''}>
-            <Icon name="search" />정보 검색
+            <NavIcon name="search" />시황·정보 검색
           </Link>
         </div>
 
@@ -67,7 +74,7 @@ export function Sidebar() {
           </Link>
           <div className="sidebar-expand-row">
             <Link href="/cases" className={shipmentActive ? 'active' : ''} onClick={() => setManualOpen(true)}>
-              <Icon name="case" />
+              <NavIcon name="case" />
               화물 운송{needsAttention > 0 && <em>{needsAttention}</em>}
             </Link>
             <button type="button" className="sidebar-chev" aria-label={open ? '접기' : '펼치기'} onClick={() => setManualOpen(!open)}>
@@ -78,9 +85,11 @@ export function Sidebar() {
             <div className="sidebar-sub">
               {CASE_SUB_ITEMS.map(([segment, label]) => {
                 const href = `/cases/${activeCaseId}${segment}`;
+                const count = subCounts[label] ?? 0;
                 return (
                   <Link key={segment} href={href} className={pathname === href ? 'active' : ''}>
                     {label}
+                    {count > 0 && <em>{count}</em>}
                   </Link>
                 );
               })}

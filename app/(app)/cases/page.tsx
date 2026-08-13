@@ -24,13 +24,13 @@ export default function CaseListPage() {
   );
 
   return (
-    <div className="page">
+    <div className="page figma-case-list">
       <PageTitle
         eyebrow="SHIPMENT MANAGEMENT"
         title="화물 운송"
         desc="화물 운송 건을 등록해 견적 검증부터 계약·정산까지 한 곳에서 관리하세요."
         action={
-          <Link href="/quotes/new" className="primary">
+          <Link href="/quotes/new" className="primary case-create">
             <Icon name="plus" /> 새 화물 운송 건 등록
           </Link>
         }
@@ -55,54 +55,56 @@ export default function CaseListPage() {
           <b>전체 견적</b>
           <span>{filtered.length}건</span>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>CASE 번호</th>
-              <th>화주 / 품목</th>
-              <th>노선</th>
-              <th>견적</th>
-              <th>상태</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c) => (
-              <tr
-                key={c.id}
-                tabIndex={0}
-                role="link"
-                onClick={() => router.push(`/cases/${c.id}`)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    router.push(`/cases/${c.id}`);
-                  }
-                }}
-              >
-                <td>
-                  <b>{c.caseNumber}</b>
-                </td>
-                <td>
-                  <b>{c.shipperName}</b>
-                  <small>
-                    {c.cargoType} · {c.containerType}
-                  </small>
-                </td>
-                <td>{c.route}</td>
-                <td>
-                  <strong>${c.price.toLocaleString()}</strong>
-                </td>
-                <td>
-                  <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
-                </td>
-                <td>
-                  <Icon name="arrow" />
-                </td>
+        <div className="case-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>CASE 번호</th>
+                <th>화주 / 품목</th>
+                <th>노선</th>
+                <th>견적</th>
+                <th>상태</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr
+                  key={c.id}
+                  tabIndex={0}
+                  role="link"
+                  onClick={() => router.push(`/cases/${c.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/cases/${c.id}`);
+                    }
+                  }}
+                >
+                  <td>
+                    <b>{c.caseNumber}</b>
+                  </td>
+                  <td>
+                    <b>{c.shipperName}</b>
+                    <small>
+                      {c.cargoType} · {c.containerType}
+                    </small>
+                  </td>
+                  <td>{c.route}</td>
+                  <td>
+                    <strong>${c.price.toLocaleString()}</strong>
+                  </td>
+                  <td>
+                    <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
+                  </td>
+                  <td>
+                    <Icon name="arrow" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {!loading && filtered.length === 0 && (
           <div className="empty">
             <span>⌕</span>

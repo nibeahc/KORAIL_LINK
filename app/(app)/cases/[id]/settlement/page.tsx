@@ -55,7 +55,7 @@ export default function CaseSettlementPage() {
 
   if (item.contract?.signStatus !== 'signed') {
     return (
-      <div className="case-workspace">
+      <div className="case-workspace figma-case-detail">
         <CaseHeader item={item} />
         <CaseTabs caseId={item.id} />
         <div className="workspace-body">
@@ -166,7 +166,7 @@ export default function CaseSettlementPage() {
   const problemRows = summary?.comparison.filter((r) => r.category !== 'match') ?? [];
 
   return (
-    <div className="case-workspace">
+    <div className="case-workspace figma-case-detail">
       <CaseHeader item={item} />
       <CaseTabs caseId={item.id} />
 

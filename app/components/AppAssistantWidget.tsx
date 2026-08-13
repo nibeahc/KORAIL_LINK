@@ -12,6 +12,7 @@ import { answerDispute } from '../lib/disputeChatEngine';
 import { newsArticles } from '../lib/newsData';
 import { getRoute } from '../lib/routeData';
 import { CASE_STATUS_LABEL, type CaseItem } from '../lib/types';
+import { Icon } from './Icon';
 
 interface LocalMessage {
   id: string;
@@ -133,73 +134,52 @@ export function AppAssistantWidget() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40">
+    <>
+      <button type="button" className="chatbot" onClick={() => setOpen(true)} aria-label="KORAIL LINK 도우미 열기">
+        <img src="/icons/chatbot-train.svg" alt="" aria-hidden />
+        <span>챗봇</span>
+      </button>
       {open && (
-        <div className="mb-3 flex h-[28rem] w-80 flex-col rounded-xl border border-neutral-200 bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-neutral-900">KORAIL LINK 도우미</p>
-              <p className="text-xs text-neutral-400">
-                {activeCase ? `${activeCase.caseNumber} 전체 정보를 알고 있습니다` : '서비스 이용 전반을 안내합니다'}
-              </p>
-            </div>
-            <button onClick={() => setOpen(false)} className="text-sm text-neutral-400 hover:text-neutral-700">
-              닫기
-            </button>
-          </div>
-
-          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            {messages.length === 0 && (
-              <p className="text-xs text-neutral-400">
-                예: 이 서비스는 뭘 도와주나요? / 이 Case는 지금 어느 단계인가요? / 이 견적이 왜 높게 나왔나요?
-              </p>
-            )}
-            {messages.map((m) => (
-              <div key={m.id} className={m.role === 'user' ? 'text-right' : ''}>
-                <div
-                  className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                    m.role === 'user' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-800'
-                  }`}
-                >
+        <>
+          <button type="button" className="chat-overlay" aria-label="챗봇 닫기" onClick={() => setOpen(false)} />
+          <section className="home-chat-modal" role="dialog" aria-modal="true" aria-labelledby="assistant-chat-title">
+            <header>
+              <div>
+                <h2 id="assistant-chat-title">KORAIL LINK 도우미</h2>
+                <small style={{ display: 'block', color: 'var(--muted)', fontSize: 9, marginTop: 2 }}>
+                  {activeCase ? `${activeCase.caseNumber} 전체 정보를 알고 있습니다` : '서비스 이용 전반을 안내합니다'}
+                </small>
+              </div>
+              <button type="button" aria-label="닫기" onClick={() => setOpen(false)}>
+                ×
+              </button>
+            </header>
+            <div className="home-chat-log">
+              {messages.length === 0 && (
+                <div className="home-chat-message bot">예: 이 서비스는 뭘 도와주나요? / 이 Case는 지금 어느 단계인가요? / 이 견적이 왜 높게 나왔나요?</div>
+              )}
+              {messages.map((m) => (
+                <div key={m.id} className={`home-chat-message ${m.role === 'user' ? 'user' : 'bot'}`}>
                   {m.text}
                 </div>
-              </div>
-            ))}
-            {sending && <p className="text-xs text-neutral-400">답변 작성 중…</p>}
-          </div>
-
-          <div className="flex gap-2 border-t border-neutral-200 p-3">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="질문을 입력하세요"
-              className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-            />
-            <button
-              disabled={sending}
-              onClick={handleSend}
-              className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              전송
-            </button>
-          </div>
-        </div>
+              ))}
+              {sending && <div className="home-chat-message bot">답변 작성 중…</div>}
+            </div>
+            <div className="home-chat-input">
+              <input
+                autoFocus
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="질문을 입력하세요"
+              />
+              <button type="button" disabled={sending} onClick={handleSend} aria-label="전송">
+                <Icon name="arrow" />
+              </button>
+            </div>
+          </section>
+        </>
       )}
-
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-neutral-900 text-white shadow-lg hover:bg-neutral-800"
-        aria-label="KORAIL LINK 도우미 열기"
-      >
-        {open ? (
-          <span className="text-lg">×</span>
-        ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-          </svg>
-        )}
-      </button>
-    </div>
+    </>
   );
 }
