@@ -5,61 +5,49 @@ import { useParams } from 'next/navigation';
 import { useCases } from '../../../../lib/state';
 import type { CaseDocument, DocumentType, FieldChange } from '../../../../lib/types';
 import { DOCUMENT_TYPE_LABEL } from '../../../../lib/types';
-import {
-  buildComparison,
-  buildWaybillDraft,
-  simulateExtraction,
-  VERDICT_LABEL,
-  CASE_FIELD_DEFS,
-  type FieldVerdict,
-} from '../../../../lib/documentEngine';
+import { buildComparison, buildWaybillDraft, simulateExtraction, VERDICT_LABEL, CASE_FIELD_DEFS, type FieldVerdict } from '../../../../lib/documentEngine';
 import { decideCaseFieldChange, updateDocumentExtractionResult, uploadCaseDocument } from '../../../../lib/supabase';
+import { CaseHeader } from '../../../../components/CaseHeader';
+import { CaseTabs } from '../../../../components/CaseTabs';
+import { Badge } from '../../../../components/Badge';
+import { Icon } from '../../../../components/Icon';
 
 const DOC_TYPES: DocumentType[] = ['contract', 'packing_list', 'waybill', 'bl'];
-
-const VERDICT_COLOR: Record<FieldVerdict, string> = {
-  match: 'bg-green-100 text-green-700',
-  mismatch: 'bg-red-100 text-red-700',
-  confirm_needed: 'bg-amber-100 text-amber-700',
-};
+const VERDICT_TONE: Record<FieldVerdict, 'green' | 'red' | 'amber'> = { match: 'green', mismatch: 'red', confirm_needed: 'amber' };
 
 export default function CaseDocumentsPage() {
   const params = useParams<{ id: string }>();
   const { cases, setCasesAndPersist } = useCases();
   const item = cases.find((c) => c.id === params.id);
-  const [selectedType, setSelectedType] = useState<DocumentType>('packing_list');
-  const [fileName, setFileName] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pendingType, setPendingType] = useState<DocumentType | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showWaybillDraft, setShowWaybillDraft] = useState(false);
 
   if (!item) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <p className="text-sm text-neutral-500">Case를 찾을 수 없습니다.</p>
-      </main>
+      <div className="page">
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>Case를 찾을 수 없습니다.</p>
+      </div>
     );
   }
 
   const documents = item.documents ?? [];
 
-  async function handleUpload() {
-    if (!selectedFile || uploading) return;
+  async function handleFileSelected(type: DocumentType, file: File) {
+    setPendingType(type);
     setUploading(true);
     setError(null);
-    const name = fileName.trim() || selectedFile.name;
-    const snapshot = simulateExtraction(selectedType, item!.masterData);
+    const snapshot = simulateExtraction(type, item!.masterData);
     try {
-      const uploaded = await uploadCaseDocument({ caseId: item!.id, documentType: selectedType, file: selectedFile, extractionResult: { snapshot, resolutions: {} } });
-      const doc: CaseDocument = { id: uploaded.id, documentType: selectedType, fileName: name, uploadedAt: new Date().toISOString(), extractedSnapshot: snapshot, resolutions: {} };
+      const uploaded = await uploadCaseDocument({ caseId: item!.id, documentType: type, file, extractionResult: { snapshot, resolutions: {} } });
+      const doc: CaseDocument = { id: uploaded.id, documentType: type, fileName: file.name, uploadedAt: new Date().toISOString(), extractedSnapshot: snapshot, resolutions: {} };
       setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, documents: [...(c.documents ?? []), doc] } : c)));
-      setFileName('');
-      setSelectedFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Document upload failed.');
+      setError(err instanceof Error ? err.message : '문서 업로드에 실패했습니다.');
     } finally {
       setUploading(false);
+      setPendingType(null);
     }
   }
 
@@ -68,7 +56,7 @@ export default function CaseDocumentsPage() {
     const doc: CaseDocument = {
       id: crypto.randomUUID(),
       documentType: 'waybill',
-      fileName: 'AI 초안 생성',
+      fileName: 'AI 생성 초안',
       uploadedAt: new Date().toISOString(),
       extractedSnapshot: snapshot,
       resolutions: {},
@@ -91,12 +79,11 @@ export default function CaseDocumentsPage() {
     setCasesAndPersist((prev) =>
       prev.map((c) => {
         if (c.id !== item!.id) return c;
-
         let masterData = c.masterData;
         if (action === 'apply_document') {
           const extractedValue = doc.extractedSnapshot[field];
           if (extractedValue !== null && extractedValue !== undefined) {
-            const previousValue = (masterData as unknown as Record<string, unknown>)[field];
+            const previous = (masterData as unknown as Record<string, unknown>)[field];
             const nextMasterData = { ...masterData } as unknown as Record<string, unknown>;
             nextMasterData[field] = field === 'containerCount' || field === 'totalWeightTon' ? Number(extractedValue) : extractedValue;
             const change: FieldChange = {
@@ -104,7 +91,7 @@ export default function CaseDocumentsPage() {
               field,
               documentType: doc.documentType,
               fileName: doc.fileName,
-              previousValue: String(previousValue),
+              previousValue: String(previous),
               newValue: extractedValue,
               changedAt: new Date().toISOString(),
             };
@@ -112,10 +99,7 @@ export default function CaseDocumentsPage() {
             masterData = nextMasterData as unknown as typeof masterData;
           }
         }
-
-        const nextDocuments = (c.documents ?? []).map((d) =>
-          d.id === doc.id ? { ...d, resolutions: { ...d.resolutions, [field]: action } } : d
-        );
+        const nextDocuments = (c.documents ?? []).map((d) => (d.id === doc.id ? { ...d, resolutions: { ...d.resolutions, [field]: action } } : d));
         return { ...c, masterData, documents: nextDocuments };
       })
     );
@@ -125,202 +109,227 @@ export default function CaseDocumentsPage() {
   const waybillDraft = buildWaybillDraft(item.masterData);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-lg font-semibold text-neutral-900">문서</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        업로드된 문서는 실제 내용을 읽지 않고, Case 정보를 바탕으로 추출한 것처럼 시뮬레이션합니다.
-      </p>
+    <div className="case-workspace">
+      <CaseHeader item={item} />
+      <CaseTabs caseId={item.id} />
 
-      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-        <h2 className="text-sm font-medium text-neutral-700">문서 업로드</h2>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value as DocumentType)}
-            className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm"
-          >
-            {DOC_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DOCUMENT_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] ?? null; setSelectedFile(file); setFileName(file?.name ?? ''); }} className="text-sm" />
-          <button disabled={!selectedFile || uploading} onClick={handleUpload} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
-            업로드
-          </button>
-        </div>
-        {selectedType === 'waybill' && (
-          <button onClick={handleGenerateWaybillDraft} className="mt-3 text-sm text-neutral-600 underline hover:text-neutral-900">
-            또는 Case 정보로 화물운송장 AI 초안 생성
-          </button>
-        )}
-      </section>
-
-      {showWaybillDraft && (
-        <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-700">화물운송장 AI 초안</h2>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            {waybillDraft.fields.map((f) => (
-              <div key={f.label}>
-                <dt className="text-xs text-neutral-400">{f.label}</dt>
-                <dd className={f.value === null ? 'text-amber-600' : 'text-neutral-900'}>{f.value ?? '추가 입력 필요'}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="mt-4">
-            <p className="text-xs font-medium text-neutral-400">SMGS 필수 확인 항목</p>
-            <ul className="mt-2 space-y-1 text-sm text-neutral-600">
-              {waybillDraft.checklist.map((c) => (
-                <li key={c.title}>
-                  {c.title} — {c.description}
-                </li>
-              ))}
-            </ul>
+      <div className="workspace-body">
+        <div className="validation-title">
+          <div>
+            <span className="section-kicker">DOCUMENT PIPELINE</span>
+            <h2>문서</h2>
+            <p>계약서·Packing List·화물운송장·B/L을 업로드하면 AI가 정보를 추출해 이 운송 건의 데이터로 반영합니다. 실제 파일 내용은 읽지 않습니다.</p>
           </div>
-          <button
-            onClick={() => window.print()}
-            className="mt-4 rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-50"
-          >
-            PDF 출력(데모)
-          </button>
-        </section>
-      )}
+        </div>
 
-      <section className="mt-6">
-        <h2 className="text-sm font-medium text-neutral-700">업로드된 문서</h2>
-        <div className="mt-3 space-y-4">
-          {documents.length === 0 && <p className="text-sm text-neutral-400">업로드된 문서가 없습니다.</p>}
-          {documents.map((doc) => {
-            const rows = buildComparison(doc.documentType, item!.masterData, doc.extractedSnapshot);
+        <div className="notice">
+          <Icon name="info" />
+          <span>
+            <b>AI 추출 결과 · 확인 필요.</b> 이미 등록된 정보와 다른 값이 나오면(표기 형식 차이 제외) 완전일치 기준으로 확인 필요 표시를 합니다.
+          </span>
+        </div>
+        {error && <p style={{ color: '#c84449', fontSize: 11, marginBottom: 12 }}>{error}</p>}
+
+        <div className="doc-grid">
+          {DOC_TYPES.map((type) => {
+            const typeDocs = documents.filter((d) => d.documentType === type);
+            const inputId = `upload-${type}`;
+            const isUploadingThis = uploading && pendingType === type;
             return (
-              <div key={doc.id} className="rounded-lg border border-neutral-200 bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-neutral-900">
-                    {DOCUMENT_TYPE_LABEL[doc.documentType]} · {doc.fileName}
-                  </p>
-                  <span className="text-xs text-neutral-400">{new Date(doc.uploadedAt).toLocaleString('ko-KR')}</span>
+              <section className="card doc-card" key={type}>
+                <div className="doc-card-head">
+                  <div>
+                    <b>
+                      <Icon name={type === 'bl' ? 'bl' : type === 'waybill' ? 'waybill' : 'copy'} /> {DOCUMENT_TYPE_LABEL[type]}
+                    </b>
+                    {typeDocs.length > 0 && <small>{typeDocs.length}건 업로드됨</small>}
+                  </div>
                 </div>
-                <table className="mt-3 w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-                      <th className="py-2">필드</th>
-                      <th className="py-2">Case 값</th>
-                      <th className="py-2">추출값</th>
-                      <th className="py-2">판정</th>
-                      <th className="py-2">처리</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => {
-                      const resolvable = CASE_FIELD_DEFS.some((d) => d.field === row.field);
-                      const resolution = doc.resolutions[row.field];
-                      return (
-                        <tr key={row.field} className="border-b border-neutral-100 last:border-0">
-                          <td className="py-2">{row.label}</td>
-                          <td className="py-2 text-neutral-600">{row.caseValue ?? '—'}</td>
-                          <td className="py-2 text-neutral-600">{row.extractedValue ?? '확인 필요'}</td>
-                          <td className="py-2">
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${VERDICT_COLOR[row.verdict]}`}>
-                              {VERDICT_LABEL[row.verdict]}
-                            </span>
-                          </td>
-                          <td className="py-2">
-                            {row.verdict !== 'match' && resolvable ? (
-                              <div className="flex gap-1">
-                                {(['keep_current', 'apply_document', 'confirm_later'] as const).map((action) => (
-                                  <button
-                                    key={action}
-                                    onClick={() => resolveField(doc, row.field, action)}
-                                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                                      resolution === action ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-                                    }`}
-                                  >
-                                    {action === 'keep_current' ? '현재 값 유지' : action === 'apply_document' ? '문서 값 반영' : '확인 필요로 보류'}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : row.verdict !== 'match' ? (
-                              <span className="text-xs text-neutral-400">Case 필드 아님</span>
-                            ) : (
-                              <span className="text-xs text-neutral-300">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+
+                {isUploadingThis && (
+                  <div className="doc-loading">
+                    <span className="spinner" />
+                    AI가 문서에서 정보를 추출하고 있습니다...
+                  </div>
+                )}
+
+                {typeDocs.length === 0 && !isUploadingThis && (
+                  <div className="doc-idle">
+                    {type === 'waybill' && (
+                      <button type="button" className="primary doc-generate-btn" onClick={handleGenerateWaybillDraft}>
+                        <Icon name="spark" /> AI로 초안 생성
+                      </button>
+                    )}
+                    <label className={type === 'waybill' ? 'doc-upload doc-upload-secondary' : 'doc-upload'} htmlFor={inputId}>
+                      <Icon name="plus" />
+                      {type === 'waybill' ? '이미 작성된 문서가 있다면 업로드' : '파일 업로드'}
+                      <input
+                        id={inputId}
+                        type="file"
+                        hidden
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileSelected(type, f);
+                        }}
+                      />
+                    </label>
+                    <small className="doc-format-note">PDF · JPG · PNG</small>
+                  </div>
+                )}
+
+                {typeDocs.map((doc) => {
+                  const rows = buildComparison(doc.documentType, item!.masterData, doc.extractedSnapshot);
+                  return (
+                    <div key={doc.id} style={{ marginTop: 12, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <small style={{ color: 'var(--muted)' }}>{doc.fileName}</small>
+                        <Badge tone={rows.some((r) => r.verdict !== 'match') ? 'red' : 'green'}>
+                          {rows.some((r) => r.verdict !== 'match') ? '확인 필요' : '정보 반영됨'}
+                        </Badge>
+                      </div>
+                      <table className="doc-fields">
+                        <tbody>
+                          {rows.map((row) => {
+                            const resolvable = CASE_FIELD_DEFS.some((d) => d.field === row.field);
+                            const resolution = doc.resolutions[row.field];
+                            return (
+                              <tr key={row.field} className={row.verdict === 'mismatch' ? 'mismatch' : ''}>
+                                <td>{row.label}</td>
+                                <td>{row.extractedValue ?? '확인 필요'}</td>
+                                <td>
+                                  <Badge tone={VERDICT_TONE[row.verdict]}>{VERDICT_LABEL[row.verdict]}</Badge>
+                                </td>
+                                <td>
+                                  {row.verdict !== 'match' && resolvable ? (
+                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                      {(['keep_current', 'apply_document', 'confirm_later'] as const).map((action) => (
+                                        <button
+                                          key={action}
+                                          onClick={() => resolveField(doc, row.field, action)}
+                                          style={{
+                                            fontSize: 9,
+                                            padding: '3px 7px',
+                                            borderRadius: 20,
+                                            border: '1px solid var(--line)',
+                                            background: resolution === action ? 'var(--navy)' : 'white',
+                                            color: resolution === action ? 'white' : '#42698f',
+                                          }}
+                                        >
+                                          {action === 'keep_current' ? '현재값 유지' : action === 'apply_document' ? '문서값 반영' : '보류'}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </section>
             );
           })}
         </div>
-      </section>
 
-      {documents.length > 0 && (
-        <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-700">문서 정합성</h2>
-          <p className="mt-1 text-xs text-neutral-400">같은 Case Master Data 필드를 문서별 추출값과 한 화면에서 비교합니다.</p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-                  <th className="py-2 pr-4">필드</th>
-                  <th className="py-2 pr-4">Case</th>
-                  {documents.map((d) => (
-                    <th key={d.id} className="py-2 pr-4">
-                      {DOCUMENT_TYPE_LABEL[d.documentType]}
-                    </th>
-                  ))}
-                  <th className="py-2">판정</th>
-                </tr>
-              </thead>
+        {showWaybillDraft && (
+          <section className="card doc-card" style={{ marginTop: 14 }}>
+            <div className="doc-card-head">
+              <b>화물운송장 AI 초안 미리보기</b>
+            </div>
+            <table className="doc-fields">
               <tbody>
-                {CASE_FIELD_DEFS.map((def) => {
-                  const relevantDocs = documents.filter((d) => d.extractedSnapshot[def.field] !== undefined);
-                  if (relevantDocs.length === 0) return null;
-                  const verdicts = relevantDocs.map(
-                    (d) => buildComparison(d.documentType, item!.masterData, d.extractedSnapshot).find((r) => r.field === def.field)!.verdict
-                  );
-                  const overall: FieldVerdict = verdicts.includes('mismatch')
-                    ? 'mismatch'
-                    : verdicts.includes('confirm_needed')
-                      ? 'confirm_needed'
-                      : 'match';
-                  return (
-                    <tr key={def.field} className="border-b border-neutral-100 last:border-0">
-                      <td className="py-2 pr-4">{def.label}</td>
-                      <td className="py-2 pr-4 text-neutral-600">{item!.masterData[def.field as keyof typeof item.masterData] as string}</td>
-                      {documents.map((d) => (
-                        <td key={d.id} className="py-2 pr-4 text-neutral-600">
-                          {d.extractedSnapshot[def.field] ?? (d.extractedSnapshot[def.field] === undefined ? '—' : '확인 필요')}
-                        </td>
-                      ))}
-                      <td className="py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${VERDICT_COLOR[overall]}`}>{VERDICT_LABEL[overall]}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {waybillDraft.fields.map((f) => (
+                  <tr key={f.label} className={f.value === null ? 'mismatch' : ''}>
+                    <td>{f.label}</td>
+                    <td>{f.value ?? '추가 입력 필요'}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-          </div>
-        </section>
-      )}
+            <div className="doc-checklist">
+              <b>SMGS 필수 확인 항목</b>
+              {waybillDraft.checklist.map((c) => (
+                <div className="pass" key={c.title}>
+                  <span>✓</span>
+                  <div>
+                    <b>{c.title}</b>
+                    <small>{c.description}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button className="secondary" onClick={() => window.print()} style={{ marginTop: 10 }}>
+              <Icon name="print" /> PDF 출력(데모)
+            </button>
+          </section>
+        )}
 
-      {item.masterData.changeHistory.length > 0 && (
-        <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-700">변경이력</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+        {documents.length > 0 && (
+          <section className="card table-card" style={{ marginTop: 17 }}>
+            <div className="table-summary">
+              <b>문서 정합성</b>
+              <span>같은 Case Master Data 필드를 문서별 추출값과 비교</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>필드</th>
+                    <th>Case</th>
+                    {documents.map((d) => (
+                      <th key={d.id}>{DOCUMENT_TYPE_LABEL[d.documentType]}</th>
+                    ))}
+                    <th>판정</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CASE_FIELD_DEFS.map((def) => {
+                    const relevantDocs = documents.filter((d) => d.extractedSnapshot[def.field] !== undefined);
+                    if (relevantDocs.length === 0) return null;
+                    const verdicts = relevantDocs.map((d) => buildComparison(d.documentType, item!.masterData, d.extractedSnapshot).find((r) => r.field === def.field)!.verdict);
+                    const overall: FieldVerdict = verdicts.includes('mismatch') ? 'mismatch' : verdicts.includes('confirm_needed') ? 'confirm_needed' : 'match';
+                    return (
+                      <tr key={def.field}>
+                        <td>
+                          <b>{def.label}</b>
+                        </td>
+                        <td>{item!.masterData[def.field as keyof typeof item.masterData] as string}</td>
+                        {documents.map((d) => (
+                          <td key={d.id}>{d.extractedSnapshot[def.field] ?? '확인 필요'}</td>
+                        ))}
+                        <td>
+                          <Badge tone={VERDICT_TONE[overall]}>{VERDICT_LABEL[overall]}</Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {item.masterData.changeHistory.length > 0 && (
+          <section className="card status-log" style={{ marginTop: 17 }}>
+            <div className="card-head">
+              <h2>변경이력</h2>
+            </div>
             {item.masterData.changeHistory.map((h) => (
-              <li key={h.id} className="text-neutral-600">
-                [{DOCUMENT_TYPE_LABEL[h.documentType as DocumentType] ?? h.documentType}·{h.fileName}] {h.field}: {h.previousValue} →{' '}
-                <span className="font-medium text-neutral-900">{h.newValue}</span> ({new Date(h.changedAt).toLocaleString('ko-KR')})
-              </li>
+              <div key={h.id}>
+                <span>✓</span>
+                <b>
+                  [{DOCUMENT_TYPE_LABEL[h.documentType as DocumentType] ?? h.documentType}·{h.fileName}] {h.field}: {h.previousValue} → {h.newValue}
+                </b>
+                <small>{new Date(h.changedAt).toLocaleString('ko-KR')}</small>
+              </div>
             ))}
-          </ul>
-        </section>
-      )}
-    </main>
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

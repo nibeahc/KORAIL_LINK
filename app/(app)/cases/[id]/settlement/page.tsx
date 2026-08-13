@@ -14,13 +14,17 @@ import { buildCausalAnalysis } from '../../../../lib/causalAnalysis';
 import { getRoute } from '../../../../lib/routeData';
 import { newsArticles } from '../../../../lib/newsData';
 import { insertTaxInvoice, insertDisputeChatMessage, saveInvoiceComparison } from '../../../../lib/supabase';
+import { CaseHeader } from '../../../../components/CaseHeader';
+import { CaseTabs } from '../../../../components/CaseTabs';
+import { Badge } from '../../../../components/Badge';
+import { Icon } from '../../../../components/Icon';
 
-const CATEGORY_COLOR: Record<MatchCategory, string> = {
-  match: 'bg-green-100 text-green-700',
-  confirm_needed: 'bg-amber-100 text-amber-700',
-  new_item: 'bg-blue-100 text-blue-700',
-  missing: 'bg-red-100 text-red-700',
-  uncertain_match: 'bg-neutral-200 text-neutral-700',
+const CATEGORY_TONE: Record<MatchCategory, 'green' | 'amber' | 'blue' | 'red'> = {
+  match: 'green',
+  confirm_needed: 'amber',
+  new_item: 'blue',
+  missing: 'red',
+  uncertain_match: 'blue',
 };
 
 export default function CaseSettlementPage() {
@@ -43,23 +47,26 @@ export default function CaseSettlementPage() {
 
   if (!item) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <p className="text-sm text-neutral-500">Case를 찾을 수 없습니다.</p>
-      </main>
+      <div className="page">
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>Case를 찾을 수 없습니다.</p>
+      </div>
     );
   }
 
   if (item.contract?.signStatus !== 'signed') {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <h1 className="text-lg font-semibold text-neutral-900">정산</h1>
-        <p className="mt-3 text-sm text-neutral-500">
-          먼저 계약 서명을 완료해야 정산을 진행할 수 있습니다.{' '}
-          <a href={`/cases/${item.id}/contract`} className="underline">
-            계약으로 이동
-          </a>
-        </p>
-      </main>
+      <div className="case-workspace">
+        <CaseHeader item={item} />
+        <CaseTabs caseId={item.id} />
+        <div className="workspace-body">
+          <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+            먼저 계약 서명을 완료해야 정산을 진행할 수 있습니다.{' '}
+            <a href={`/cases/${item.id}/contract`} style={{ color: 'var(--blue)' }}>
+              계약으로 이동
+            </a>
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -128,7 +135,6 @@ export default function CaseSettlementPage() {
     });
 
     let answerText = fallback.text;
-    let answerEvidence = fallback.evidence;
     try {
       const result = await requestDisputeChat({
         question,
@@ -142,230 +148,239 @@ export default function CaseSettlementPage() {
         },
       });
       answerText = result.answer;
-      answerEvidence = [`LLM model: ${result.model}`];
     } catch {
-      answerEvidence = [...fallback.evidence, 'LLM unavailable; rule-based fallback used'];
+      // rule-based fallback already set above
     } finally {
       setChatSending(false);
     }
 
     const now = new Date().toISOString();
     const userMsg = { id: crypto.randomUUID(), role: 'user' as const, text: question, evidence: [], createdAt: now };
-    const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, text: answerText, evidence: answerEvidence, createdAt: now };
+    const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, text: answerText, evidence: [], createdAt: now };
 
-    setCasesAndPersist((prev) =>
-      prev.map((c) => (c.id === item!.id ? { ...c, disputeMessages: [...(c.disputeMessages ?? []), userMsg, assistantMsg] } : c))
-    );
+    setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, disputeMessages: [...(c.disputeMessages ?? []), userMsg, assistantMsg] } : c)));
     await insertDisputeChatMessage(item!.id, { role: 'user', content: question, evidenceRef: {} }).catch(() => {});
-    await insertDisputeChatMessage(item!.id, { role: 'assistant', content: answerText, evidenceRef: { sources: answerEvidence } }).catch(() => {});
+    await insertDisputeChatMessage(item!.id, { role: 'assistant', content: answerText, evidenceRef: {} }).catch(() => {});
   }
 
   const problemRows = summary?.comparison.filter((r) => r.category !== 'match') ?? [];
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-lg font-semibold text-neutral-900">정산</h1>
-      <p className="mt-1 text-sm text-neutral-500">{item.caseNumber} · 계약 기준 Cost Ledger ↔ Invoice 라인아이템 항목별 대조</p>
+    <div className="case-workspace">
+      <CaseHeader item={item} />
+      <CaseTabs caseId={item.id} />
 
-      {lines.length === 0 ? (
-        <button
-          onClick={handleGenerateDraft}
-          className="mt-6 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-        >
-          Invoice 초안 생성
-        </button>
-      ) : (
-        <>
-          {summary && (
-            <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-              <h2 className="text-sm font-medium text-neutral-700">차액을 만든 항목</h2>
-              {problemRows.length === 0 ? (
-                <p className="mt-2 text-sm text-neutral-500">차액이나 신규/누락 항목이 없습니다.</p>
-              ) : (
-                <ul className="mt-2 space-y-1.5 text-sm">
-                  {problemRows.map((r, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${CATEGORY_COLOR[r.category]}`}>
-                        {MATCH_CATEGORY_LABEL[r.category]}
-                      </span>
-                      <span className="text-neutral-700">
-                        {r.stageName ?? r.description}
-                        {r.diff !== undefined && r.diff !== 0 ? ` (차액 ${r.diff > 0 ? '+' : ''}$${r.diff.toLocaleString()})` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+      <div className="workspace-body">
+        <div className="validation-title">
+          <div>
+            <span className="section-kicker">SETTLEMENT</span>
+            <h2>정산</h2>
+            <p>계약 기준 Cost Ledger ↔ Invoice 라인아이템을 항목별로 대조합니다.</p>
+          </div>
+        </div>
 
-              <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-neutral-100 pt-4 text-sm sm:grid-cols-5">
+        {lines.length === 0 ? (
+          <button className="primary" onClick={handleGenerateDraft}>
+            <Icon name="spark" /> Invoice 초안 생성
+          </button>
+        ) : (
+          <>
+            {summary && problemRows.length > 0 && (
+              <div className="notice">
+                <Icon name="info" />
+                <span>
+                  <b>계약금액과 Invoice 청구액이 일치하지 않습니다.</b> 총 차액 {summary.totalDiff >= 0 ? '+' : ''}${summary.totalDiff.toLocaleString()} — 아래 항목별 비교에서 원인을 확인하세요.
+                </span>
+              </div>
+            )}
+
+            <section className="card settlement-info">
+              <h3>정산정보</h3>
+              <dl>
                 <div>
-                  <dt className="text-xs text-neutral-400">Invoice 총액</dt>
-                  <dd className="font-medium">${summary.invoiceTotal.toLocaleString()}</dd>
+                  <dt>Case</dt>
+                  <dd>{item.caseNumber}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-neutral-400">계약 총액</dt>
-                  <dd className="font-medium">${summary.contractTotal.toLocaleString()}</dd>
+                  <dt>화주</dt>
+                  <dd>{item.shipperName}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-neutral-400">총 차액</dt>
-                  <dd className="font-medium">${summary.totalDiff.toLocaleString()}</dd>
+                  <dt>노선</dt>
+                  <dd>{item.route}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-neutral-400">차액 발생 항목</dt>
-                  <dd className="font-medium">{summary.diffCount}건</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-neutral-400">신규 청구 항목</dt>
-                  <dd className="font-medium">{summary.newItemCount}건</dd>
+                  <dt>운송인</dt>
+                  <dd>코레일</dd>
                 </div>
               </dl>
             </section>
-          )}
 
-          <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-neutral-700">Invoice 라인아이템 (편집 가능)</h2>
-              <button onClick={addLine} className="text-xs text-neutral-500 underline hover:text-neutral-900">
-                항목 추가
-              </button>
-            </div>
-            <table className="mt-3 w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-                  <th className="py-2">항목</th>
-                  <th className="py-2 text-right">금액(USD)</th>
-                  <th className="py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((l) => (
-                  <tr key={l.id} className="border-b border-neutral-100 last:border-0">
-                    <td className="py-2">{l.description}</td>
-                    <td className="py-2 text-right">
-                      <input
-                        type="number"
-                        value={l.amount}
-                        onChange={(e) => updateLine(l.id, Number(e.target.value))}
-                        className="w-28 rounded-md border border-neutral-300 px-2 py-1 text-right text-sm"
-                      />
-                    </td>
-                    <td className="py-2 text-right">
-                      <button onClick={() => removeLine(l.id)} className="text-xs text-neutral-400 hover:text-red-600">
-                        삭제
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+            {summary && (
+              <>
+                <section className="card cost-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>항목</th>
+                        <th>계약금액</th>
+                        <th>Invoice</th>
+                        <th>차액</th>
+                        <th>판정</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summary.comparison.map((r, i) => (
+                        <tr key={i}>
+                          <td>{r.stageName ?? r.description}</td>
+                          <td>{r.contractAmount !== undefined ? `$${r.contractAmount.toLocaleString()}` : '-'}</td>
+                          <td>{r.invoiceAmount !== undefined ? `$${r.invoiceAmount.toLocaleString()}` : '-'}</td>
+                          <td>{r.diff !== undefined ? `${r.diff > 0 ? '+' : ''}$${r.diff.toLocaleString()}` : '-'}</td>
+                          <td>
+                            <Badge tone={CATEGORY_TONE[r.category]}>{MATCH_CATEGORY_LABEL[r.category]}</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <footer>
+                    <span>
+                      Invoice 총액 vs 계약금액 ${summary.contractTotal.toLocaleString()}
+                      <small>완전일치 기준 — 허용오차 없음</small>
+                    </span>
+                    <b style={{ color: summary.totalDiff !== 0 ? '#c84449' : '#207c56' }}>
+                      ${summary.invoiceTotal.toLocaleString()} ({summary.totalDiff >= 0 ? '+' : ''}${summary.totalDiff.toLocaleString()})
+                    </b>
+                  </footer>
+                </section>
 
-          {summary && (
-            <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-              <h2 className="text-sm font-medium text-neutral-700">항목별 비교</h2>
-              <table className="mt-3 w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-                    <th className="py-2">항목</th>
-                    <th className="py-2 text-right">계약금액</th>
-                    <th className="py-2 text-right">Invoice</th>
-                    <th className="py-2 text-right">차액</th>
-                    <th className="py-2">판정</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.comparison.map((r, i) => (
-                    <tr key={i} className="border-b border-neutral-100 last:border-0">
-                      <td className="py-2">{r.stageName ?? r.description}</td>
-                      <td className="py-2 text-right">{r.contractAmount !== undefined ? `$${r.contractAmount.toLocaleString()}` : '-'}</td>
-                      <td className="py-2 text-right">{r.invoiceAmount !== undefined ? `$${r.invoiceAmount.toLocaleString()}` : '-'}</td>
-                      <td className="py-2 text-right">{r.diff !== undefined ? `${r.diff > 0 ? '+' : ''}$${r.diff.toLocaleString()}` : '-'}</td>
-                      <td className="py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${CATEGORY_COLOR[r.category]}`}>
-                          {MATCH_CATEGORY_LABEL[r.category]}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          )}
-
-          <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-neutral-700">세금계산서</h2>
-              <button onClick={handleGenerateTaxInvoice} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800">
-                세금계산서 생성
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-neutral-400">국세청 홈택스 연동이 아닌 미리보기 시뮬레이션입니다.</p>
-            <div className="mt-3 space-y-3">
-              {(item.taxInvoices ?? []).map((inv) => (
-                <div key={inv.id} className="rounded-md border border-neutral-200 p-3 text-sm">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <Field label="작성일자" value={inv.issuedDate} />
-                    <Field label="공급자" value={inv.supplierBusinessNumber} />
-                    <Field label="공급받는자" value={inv.customerBusinessNumber} />
-                    <Field label="품목" value={inv.item} />
-                    <Field label="공급가액" value={`$${inv.supplyAmount.toLocaleString()}`} />
-                    <Field label="세액" value={`$${inv.vatAmount.toLocaleString()}`} />
-                    <Field label="합계금액" value={`$${inv.totalAmount.toLocaleString()}`} />
-                    <Field label="과세유형" value="영세율" />
+                <section className="card table-card">
+                  <div className="table-summary">
+                    <b>Invoice 라인아이템</b>
+                    <span>편집 가능</span>
+                    <button onClick={addLine}>항목 추가</button>
                   </div>
-                  <p className="mt-2 text-xs text-neutral-400">국제운송용역 기준(실제 적용은 세무 담당자 확인 필요)</p>
-                </div>
-              ))}
-              {(!item.taxInvoices || item.taxInvoices.length === 0) && (
-                <p className="text-sm text-neutral-400">아직 생성된 세금계산서가 없습니다.</p>
-              )}
-            </div>
-          </section>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>항목</th>
+                        <th>금액(USD)</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((l) => (
+                        <tr key={l.id}>
+                          <td>{l.description}</td>
+                          <td>
+                            <input
+                              type="number"
+                              value={l.amount}
+                              onChange={(e) => updateLine(l.id, Number(e.target.value))}
+                              style={{ width: 100, border: '1px solid #dce2e9', borderRadius: 6, padding: '4px 6px', textAlign: 'right' }}
+                            />
+                          </td>
+                          <td>
+                            <button onClick={() => removeLine(l.id)} style={{ color: '#a2acbb', fontSize: 9 }}>
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              </>
+            )}
 
-          <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-            <h2 className="text-sm font-medium text-neutral-700">정산 도우미</h2>
-            <p className="mt-1 text-xs text-neutral-400">
-              이 Case의 정산 차액·세금계산서를 바탕으로 답합니다. 견적·계약·문서 전반은 우측 하단의 KORAIL LINK 도우미에게 물어보세요.
-            </p>
-            <div className="mt-3 space-y-3">
-              {(item.disputeMessages ?? []).map((m) => (
-                <div key={m.id} className={m.role === 'user' ? 'text-right' : ''}>
-                  <div
-                    className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                      m.role === 'user' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-800'
-                    }`}
-                  >
+            <section className="card tax-invoice">
+              <div className="card-head">
+                <div>
+                  <span className="section-kicker">TAX INVOICE</span>
+                  <h3>세금계산서</h3>
+                </div>
+                {item.taxInvoices && item.taxInvoices.length > 0 && <Badge tone="green">발행 완료</Badge>}
+              </div>
+              {(!item.taxInvoices || item.taxInvoices.length === 0) && (
+                <div className="tax-invoice-empty">
+                  <p>정산 대조 결과를 기준으로 세금계산서를 자동 생성합니다.</p>
+                  <button className="primary" onClick={handleGenerateTaxInvoice}>
+                    <Icon name="spark" /> 세금계산서 발행
+                  </button>
+                </div>
+              )}
+              {(item.taxInvoices ?? []).map((tax) => (
+                <dl className="tax-invoice-fields" key={tax.id}>
+                  <div>
+                    <dt>작성일자</dt>
+                    <dd>{tax.issuedDate}</dd>
+                  </div>
+                  <div>
+                    <dt>공급자</dt>
+                    <dd>{tax.supplierBusinessNumber}</dd>
+                  </div>
+                  <div>
+                    <dt>공급받는자</dt>
+                    <dd>{tax.customerBusinessNumber}</dd>
+                  </div>
+                  <div>
+                    <dt>품목</dt>
+                    <dd>{tax.item}</dd>
+                  </div>
+                  <div>
+                    <dt>과세유형</dt>
+                    <dd>
+                      영세율<small className="tax-type-hint"> · 국제운송용역 기준(실제 적용은 세무 담당자 확인 필요)</small>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>공급가액</dt>
+                    <dd>${tax.supplyAmount.toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt>세액</dt>
+                    <dd>${tax.vatAmount.toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt>합계금액</dt>
+                    <dd>
+                      <b>${tax.totalAmount.toLocaleString()}</b>
+                    </dd>
+                  </div>
+                </dl>
+              ))}
+              <small className="hint">실제 국세청 홈택스 연동이 아닌 데모용 시뮬레이션입니다.</small>
+            </section>
+
+            <section className="card dispute-chat">
+              <div className="card-head">
+                <div>
+                  <span className="section-kicker">SETTLEMENT ASSISTANT</span>
+                  <h3>정산 도우미</h3>
+                </div>
+              </div>
+              <div className="chat-log">
+                {(item.disputeMessages ?? []).length === 0 && (
+                  <div className="chat-msg bot">정산 결과에 대해 궁금한 점을 물어보세요. (예: &quot;왜 이렇게 비싸요?&quot;, &quot;차액이 얼마예요?&quot;)</div>
+                )}
+                {(item.disputeMessages ?? []).map((m) => (
+                  <div key={m.id} className={`chat-msg ${m.role === 'user' ? 'user' : 'bot'}`}>
                     {m.text}
                   </div>
-                  {m.evidence.length > 0 && <p className="mt-1 text-xs text-neutral-400">근거: {m.evidence.join(', ')}</p>}
-                </div>
-              ))}
-              {chatSending && <p className="text-xs text-neutral-400">답변 작성 중…</p>}
-            </div>
-            <div className="mt-4 flex gap-2">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="예: 왜 이렇게 비싸요? / 차액이 얼마예요? / 왜 늦어져요?"
-                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-              />
-              <button disabled={chatSending} onClick={handleSend} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">
-                전송
-              </button>
-            </div>
-          </section>
-        </>
-      )}
-    </main>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-neutral-400">{label}</p>
-      <p className="font-medium text-neutral-900">{value}</p>
+                ))}
+                {chatSending && <div className="chat-msg bot">답변 작성 중…</div>}
+              </div>
+              <div className="chat-input">
+                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="질문을 입력하세요" />
+                <button onClick={handleSend} disabled={chatSending}>
+                  <Icon name="arrow" />
+                </button>
+              </div>
+              <small className="hint">이 Case의 정산 차액을 바탕으로 답합니다. 견적·계약·문서 전반은 우측 하단 KORAIL LINK 도우미에게 물어보세요.</small>
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 }

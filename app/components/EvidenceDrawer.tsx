@@ -1,52 +1,82 @@
 'use client';
 
 import type { CausalAnalysis } from '../lib/causalAnalysis';
+import { Icon } from './Icon';
+import { SparkLine } from './charts/SparkLine';
+import { SERIES } from '../lib/marketData';
 
 export function EvidenceDrawer({ analysis, onClose }: { analysis: CausalAnalysis | null; onClose: () => void }) {
   if (!analysis) return null;
+  const series = SERIES[analysis.indicator];
+  const latest = series[series.length - 1];
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/20" onClick={onClose}>
-      <div className="h-full w-full max-w-sm overflow-y-auto bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-neutral-900">{analysis.label} 근거</h3>
-          <button onClick={onClose} className="text-sm text-neutral-400 hover:text-neutral-700">
-            닫기
-          </button>
+    <>
+      <div className="overlay" onClick={onClose} />
+      <div className="drawer" role="dialog" aria-modal="true">
+        <header>
+          <div>
+            <span className="section-kicker">EVIDENCE</span>
+            <h2>{analysis.label}</h2>
+          </div>
+          <button onClick={onClose}>×</button>
+        </header>
+
+        <div className="drawer-chart">
+          <SparkLine series={series} isAnomaly={analysis.isAnomaly} height={70} />
+          <div className="drawer-stats">
+            <div>
+              <b>{latest.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b>
+              <span>현재값</span>
+            </div>
+            <div>
+              <b>{analysis.zScore.toFixed(1)}</b>
+              <span>z-score</span>
+            </div>
+            <div>
+              <b style={{ color: analysis.isAnomaly ? '#c84449' : '#207c56' }}>{analysis.isAnomaly ? '이상탐지됨' : '정상 범위'}</b>
+              <span>30일 기준</span>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 rounded-md bg-neutral-50 p-3 text-sm text-neutral-700">{analysis.narrative}</div>
-
-        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="causal-box">
+          <Icon name="spark" />
           <div>
-            <dt className="text-neutral-400">z-score</dt>
-            <dd className="font-medium text-neutral-900">{analysis.zScore.toFixed(2)}</dd>
+            <small>AI 인과분석 · {analysis.relatedNews.length > 0 ? '뉴스 근거' : '추정'}</small>
+            <p>{analysis.narrative}</p>
           </div>
-          <div>
-            <dt className="text-neutral-400">전일 대비</dt>
-            <dd className="font-medium text-neutral-900">{analysis.changePct.toFixed(2)}%</dd>
-          </div>
-        </dl>
-
-        <div className="mt-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">관련 뉴스</p>
-          {analysis.relatedNews.length === 0 ? (
-            <p className="mt-2 text-sm text-neutral-500">직접 연관된 뉴스가 없습니다.</p>
-          ) : (
-            <ul className="mt-2 space-y-3">
-              {analysis.relatedNews.map((n) => (
-                <li key={n.id} className="rounded-md border border-neutral-200 p-3">
-                  <p className="text-xs text-neutral-400">
-                    {n.category} · {n.publishedAt}
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-neutral-900">{n.title}</p>
-                  <p className="mt-1 text-xs text-neutral-500">{n.summary}</p>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
+
+        <h3>근거 뉴스</h3>
+        {analysis.relatedNews.length > 0 ? (
+          analysis.relatedNews.map((n, i) => (
+            <article key={n.id}>
+              <span>0{i + 1}</span>
+              <div>
+                <b>{n.title}</b>
+                <p>{n.summary}</p>
+                <small>
+                  {n.category} · {n.publishedAt} <Icon name="external" />
+                </small>
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="doc-note">
+            <Icon name="info" />
+            관련된 뉴스가 확인되지 않았습니다.
+          </p>
+        )}
+
+        <footer>
+          <Icon name="check" />
+          <div>
+            <b>근거 자료 확인 완료</b>
+            <span>필요 시 검증·포워더 문의 자료로 참고하세요.</span>
+          </div>
+        </footer>
       </div>
-    </div>
+    </>
   );
 }

@@ -7,9 +7,12 @@ import { getRoute } from '../../../lib/routeData';
 import { relevantIndicatorsForRoute, SERIES } from '../../../lib/marketData';
 import { getSeasonalSignal } from '../../../lib/seasonality';
 import { buildCausalAnalysis, type CausalAnalysis } from '../../../lib/causalAnalysis';
-import { CASE_STATUS_LABEL } from '../../../lib/types';
+import { Badge } from '../../../components/Badge';
+import { Icon } from '../../../components/Icon';
 import { MarketCard } from '../../../components/MarketCard';
 import { EvidenceDrawer } from '../../../components/EvidenceDrawer';
+import { CaseHeader } from '../../../components/CaseHeader';
+import { CaseTabs } from '../../../components/CaseTabs';
 
 export default function CaseOverviewPage() {
   const params = useParams<{ id: string }>();
@@ -19,94 +22,137 @@ export default function CaseOverviewPage() {
 
   if (!item) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-8">
-        <p className="text-sm text-neutral-500">Case를 찾을 수 없습니다.</p>
-      </main>
+      <div className="page">
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>Case를 찾을 수 없습니다.</p>
+      </div>
     );
   }
 
   const route = getRoute(item.masterData.destination);
   const indicators = route ? relevantIndicatorsForRoute(route) : [];
   const seasonal = getSeasonalSignal(item.masterData.shipmentDate);
+  const stages = item.costLedger;
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-neutral-900">
-            {item.caseNumber} · {item.shipperName}
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">{item.route}</p>
+    <div className="case-workspace">
+      <CaseHeader item={item} />
+      <CaseTabs caseId={item.id} />
+
+      <div className="workspace-body">
+        <div className="overview-grid">
+          <section className="card route-card">
+            <div className="card-head">
+              <div>
+                <span className="section-kicker">TRANSPORT</span>
+                <h2>운송정보</h2>
+              </div>
+              <Badge>{stages.length}개 구간</Badge>
+            </div>
+            <div className="route-line">
+              {stages.map((s, i) => (
+                <div key={s.stageId}>
+                  <span>{i === 0 ? 'K' : i === stages.length - 1 ? '◎' : s.mode.includes('해상') ? '⚓' : '⇄'}</span>
+                  <b>{s.stageName}</b>
+                  <small>{s.mode}</small>
+                  {i < stages.length - 1 && <i />}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="card quote-detail">
+            <span className="section-kicker">CONFIRMED QUOTE</span>
+            <h2>확정 견적</h2>
+            <strong>${item.price.toLocaleString()}</strong>
+            <b>코레일</b>
+            <dl>
+              <div>
+                <dt>화주</dt>
+                <dd>{item.masterData.shipperName}</dd>
+              </div>
+              <div>
+                <dt>출발 예정일</dt>
+                <dd>{item.masterData.shipmentDate}</dd>
+              </div>
+              <div>
+                <dt>결제 통화</dt>
+                <dd>USD</dd>
+              </div>
+              <div>
+                <dt>TCR 경유</dt>
+                <dd>{route?.usesTCR ? '경유' : '미경유(중국 내륙 직통)'}</dd>
+              </div>
+              <div>
+                <dt>계절성</dt>
+                <dd>{seasonal.label}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="card full table-card">
+            <div className="table-summary">
+              <b>구간별 Cost Ledger</b>
+              <span>{stages.length}개 항목</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>구간</th>
+                  <th>항목</th>
+                  <th>견적금액</th>
+                  <th>계약금액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stages.map((line) => (
+                  <tr key={line.stageId}>
+                    <td>
+                      <b>{line.stageName}</b>
+                    </td>
+                    <td>{line.mode}</td>
+                    <td>${line.quotedAmount.toLocaleString()}</td>
+                    <td>${line.contractAmount.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
         </div>
-        <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-700">{CASE_STATUS_LABEL[item.status]}</span>
+
+        <section className="card weekly-briefing" style={{ marginTop: 17 }}>
+          <div className="card-head">
+            <div>
+              <span className="section-kicker">MARKET SIGNALS</span>
+              <h2>현재 시장정보</h2>
+              <p>이 Case의 노선({route?.usesTCR ? 'TCR 경유' : '중국 내륙 직통'})에 관련된 지표만 표시합니다.</p>
+            </div>
+          </div>
+          <div className="wb-indicators">
+            {indicators.map((ind) => (
+              <MarketWbCard key={ind} indicator={ind} onOpen={() => setDrawer(buildCausalAnalysis(ind, SERIES[ind]))} />
+            ))}
+          </div>
+        </section>
       </div>
 
-      <section className="mt-6 grid grid-cols-2 gap-4 rounded-lg border border-neutral-200 bg-white p-5 sm:grid-cols-4">
-        <Field label="화주" value={item.masterData.shipperName} />
-        <Field label="품목" value={item.masterData.cargoType} />
-        <Field label="컨테이너" value={`${item.masterData.containerType} x ${item.masterData.containerCount}`} />
-        <Field label="총중량" value={`${item.masterData.totalWeightTon}t`} />
-        <Field label="운송조건" value={item.masterData.incoterms} />
-        <Field label="출발 예정일" value={item.masterData.shipmentDate} />
-        <Field label="TCR 경유" value={route?.usesTCR ? '경유' : '미경유(중국 내륙 직통)'} />
-        <Field label="계절성" value={`${seasonal.label} · ${seasonal.reason}`} />
-      </section>
-
-      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-        <h2 className="text-sm font-medium text-neutral-700">구간별 Cost Ledger</h2>
-        <table className="mt-3 w-full text-sm">
-          <thead>
-            <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-              <th className="py-2">구간</th>
-              <th className="py-2">항목</th>
-              <th className="py-2 text-right">견적금액</th>
-              <th className="py-2 text-right">계약금액</th>
-            </tr>
-          </thead>
-          <tbody>
-            {item.costLedger.map((line) => (
-              <tr key={line.stageId} className="border-b border-neutral-100 last:border-0">
-                <td className="py-2">{line.stageName}</td>
-                <td className="py-2 text-neutral-500">{line.mode}</td>
-                <td className="py-2 text-right">${line.quotedAmount.toLocaleString()}</td>
-                <td className="py-2 text-right">${line.contractAmount.toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={2} className="pt-2 text-right text-xs text-neutral-400">
-                합계
-              </td>
-              <td className="pt-2 text-right font-medium">${item.price.toLocaleString()}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </section>
-
-      <section className="mt-6">
-        <h2 className="text-sm font-medium text-neutral-700">현재 시장정보</h2>
-        <p className="mt-1 text-xs text-neutral-400">
-          이 Case의 노선({route?.usesTCR ? 'TCR 경유' : '중국 내륙 직통'})에 관련된 지표만 표시합니다.
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {indicators.map((ind) => (
-            <MarketCard key={ind} indicator={ind} onClick={(i) => setDrawer(buildCausalAnalysis(i, SERIES[i]))} />
-          ))}
-        </div>
-      </section>
-
       <EvidenceDrawer analysis={drawer} onClose={() => setDrawer(null)} />
-    </main>
+    </div>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function MarketWbCard({ indicator, onOpen }: { indicator: Parameters<typeof buildCausalAnalysis>[0]; onOpen: () => void }) {
+  const anomaly = buildCausalAnalysis(indicator, SERIES[indicator]);
   return (
-    <div>
-      <p className="text-xs text-neutral-400">{label}</p>
-      <p className="mt-0.5 text-sm font-medium text-neutral-900">{value}</p>
-    </div>
+    <button className="wb-indicator" onClick={onOpen}>
+      <span className={`wb-dir ${anomaly.changePct >= 0 ? 'up' : 'down'}`}>{anomaly.changePct >= 0 ? '▲' : '▼'}</span>
+      <div>
+        <b>{anomaly.label}</b>
+        <span>
+          {anomaly.changePct >= 0 ? '+' : ''}
+          {anomaly.changePct.toFixed(1)}% · z={anomaly.zScore.toFixed(1)}
+        </span>
+      </div>
+      <Icon name="arrow" />
+    </button>
   );
 }

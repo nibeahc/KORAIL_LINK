@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient, getCurrentUser } from '../lib/supabase';
 import { Sidebar } from '../components/Sidebar';
+import { AuthStatus } from '../components/AuthStatus';
+import { Topbar } from '../components/Topbar';
 import { AppAssistantWidget } from '../components/AppAssistantWidget';
 
 function isGuest(): boolean {
@@ -38,16 +40,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [router]);
 
   if (!checked) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-neutral-400">불러오는 중…</div>;
+    return (
+      <div className="app">
+        <div className="stage" style={{ marginLeft: 0 }}>
+          <div style={{ padding: 40, color: 'var(--muted)', fontSize: 12 }}>불러오는 중…</div>
+        </div>
+      </div>
+    );
   }
   if (!authed) {
     return null;
   }
 
   return (
-    <div className="flex min-h-full flex-1">
+    <div className="app">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto bg-neutral-50">{children}</div>
+      <div className="stage">
+        <AuthStatus />
+        <Topbar />
+        <main>{children}</main>
+      </div>
       <AppAssistantWidget />
     </div>
   );

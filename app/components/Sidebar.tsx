@@ -2,41 +2,37 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { getCurrentUser, getProfile, signOut, type Profile } from '../lib/supabase';
+import { usePathname } from 'next/navigation';
+import { getCurrentUser, getProfile, type Profile } from '../lib/supabase';
+import { useCases } from '../lib/state';
 
-const RESEARCH_LINKS = [
-  { href: '/', label: '홈' },
-  { href: '/market', label: '시황' },
-  { href: '/search', label: '정보 검색' },
+const CASE_SUB_ITEMS: [string, string][] = [
+  ['/contract', '계약'],
+  ['/documents', '문서'],
+  ['/settlement', '정산'],
 ];
 
-const CASE_TABS = [
-  { segment: '', label: '개요' },
-  { segment: '/validation', label: '견적 검증' },
-  { segment: '/contract', label: '계약' },
-  { segment: '/documents', label: '문서' },
-  { segment: '/settlement', label: '정산' },
-];
-
-function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+function Icon({ name }: { name: string }) {
+  const glyphs: Record<string, string> = {
+    home: '⌂',
+    case: '▤',
+    search: '⌕',
+    spark: '✦',
+    settings: '⚙',
+  };
   return (
-    <Link
-      href={href}
-      className={`block rounded-md px-3 py-2 text-sm ${
-        active ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'
-      }`}
-    >
-      {label}
-    </Link>
+    <span className="icon" aria-hidden>
+      {glyphs[name] ?? '•'}
+    </span>
   );
 }
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
+  const { cases } = useCases();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
   useEffect(() => {
     getCurrentUser().then((user) => {
@@ -48,54 +44,78 @@ export function Sidebar() {
 
   const caseMatch = pathname.match(/^\/cases\/([^/]+)/);
   const activeCaseId = caseMatch?.[1] ?? null;
-  const isCaseList = pathname === '/cases';
+  const shipmentActive = pathname.startsWith('/cases');
+  const open = manualOpen === null ? shipmentActive : manualOpen;
+  const needsAttention = cases.filter((c) => c.status === 'needs_review' || c.status === 'pending_validation').length;
 
-  async function handleSignOut() {
-    await signOut().catch(() => {});
-    sessionStorage.removeItem('korail_guest');
-    router.push('/login');
-  }
+  const displayName = profile?.fullName ?? email?.split('@')[0] ?? '게스트';
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-neutral-200 bg-white">
-      <div className="px-4 py-5">
-        <span className="text-base font-semibold text-neutral-900">KORAIL LINK</span>
-      </div>
+    <aside className="sidebar">
+      <Link href="/" className="brand">
+        <span className="brandmark">K</span>
+        <span>
+          <b>KORAIL</b> LINK
+          <small>GLOBAL LOGISTICS</small>
+        </span>
+      </Link>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3">
-        <div>
-          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">리서치</p>
-          <div className="space-y-0.5">
-            {RESEARCH_LINKS.map((link) => (
-              <NavLink key={link.href} href={link.href} label={link.label} active={pathname === link.href} />
-            ))}
-          </div>
+      <nav>
+        <div className="sidebar-group">
+          <span className="sidebar-group-label">리서치</span>
+          <Link href="/" className={pathname === '/' ? 'active' : ''}>
+            <Icon name="home" />홈
+          </Link>
+          <Link href="/market" className={pathname === '/market' ? 'active' : ''}>
+            <Icon name="search" />시황
+          </Link>
+          <Link href="/search" className={pathname === '/search' ? 'active' : ''}>
+            <Icon name="search" />정보 검색
+          </Link>
         </div>
 
-        <div>
-          <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">파이프라인</p>
-          <div className="space-y-0.5">
-            <NavLink href="/quotes/new" label="견적 생성" active={pathname === '/quotes/new'} />
-
-            <NavLink href="/cases" label="화물 운송" active={isCaseList} />
-            {activeCaseId && (
-              <div className="ml-3 mt-0.5 space-y-0.5 border-l border-neutral-200 pl-3">
-                {CASE_TABS.map((tab) => {
-                  const href = `/cases/${activeCaseId}${tab.segment}`;
-                  return <NavLink key={tab.segment} href={href} label={tab.label} active={pathname === href} />;
-                })}
-              </div>
-            )}
+        <div className="sidebar-group">
+          <span className="sidebar-group-label">파이프라인</span>
+          <Link href="/quotes/new" className={pathname === '/quotes/new' ? 'active' : ''}>
+            <Icon name="spark" />견적 생성
+          </Link>
+          <div className="sidebar-expand-row">
+            <Link href="/cases" className={shipmentActive ? 'active' : ''} onClick={() => setManualOpen(true)}>
+              <Icon name="case" />
+              화물 운송{needsAttention > 0 && <em>{needsAttention}</em>}
+            </Link>
+            <button type="button" className="sidebar-chev" aria-label={open ? '접기' : '펼치기'} onClick={() => setManualOpen(!open)}>
+              {open ? '▴' : '▾'}
+            </button>
           </div>
+          {open && activeCaseId && (
+            <div className="sidebar-sub">
+              {CASE_SUB_ITEMS.map(([segment, label]) => {
+                const href = `/cases/${activeCaseId}${segment}`;
+                return (
+                  <Link key={segment} href={href} className={pathname === href ? 'active' : ''}>
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </nav>
 
-      <div className="border-t border-neutral-200 px-4 py-3">
-        <p className="truncate text-sm font-medium text-neutral-900">{profile?.fullName ?? email ?? '게스트'}</p>
-        <p className="truncate text-xs text-neutral-500">{profile?.companyName ?? email ?? '로그인 없이 둘러보는 중'}</p>
-        <button onClick={handleSignOut} className="mt-2 text-xs text-neutral-500 hover:text-neutral-800">
-          {email ? '로그아웃' : '로그인 화면으로'}
+      <div className="side-bottom">
+        <button type="button">
+          <Icon name="settings" />
+          설정
         </button>
+        <div className="profile">
+          <span>{displayName.slice(0, 1)}</span>
+          <div>
+            <b>{displayName}</b>
+            <small>{email ?? '로그인 없이 둘러보는 중'}</small>
+          </div>
+          <i>···</i>
+        </div>
       </div>
     </aside>
   );

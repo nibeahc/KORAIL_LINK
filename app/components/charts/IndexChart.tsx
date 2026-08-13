@@ -2,60 +2,49 @@
 
 import type { CompositeIndexPoint } from '../../lib/marketData';
 
-/** 과거 시계열(±1σ 밴드) + 오늘 스냅샷을 같은 σ 단위로 점만 찍는다 — 시계열과 오늘 구간은 선으로 잇지 않는다 (A-5) */
-export function IndexChart({
-  points,
-  todayValue,
-  width = 640,
-  height = 220,
-}: {
-  points: CompositeIndexPoint[];
-  todayValue?: { value: number; color: string } | null;
-  width?: number;
-  height?: number;
-}) {
-  const padding = { top: 16, right: 56, bottom: 24, left: 16 };
-  const innerW = width - padding.left - padding.right;
-  const innerH = height - padding.top - padding.bottom;
+const toneColor = (tone: string) => (tone === 'green' ? '#1f8a5b' : tone === 'amber' ? '#d78516' : '#d93d42');
 
-  const values = points.map((p) => p.index).concat(todayValue ? [todayValue.value] : []);
-  const maxAbs = Math.max(1.5, ...values.map((v) => Math.abs(v)));
-  const yScale = (v: number) => padding.top + innerH / 2 - (v / maxAbs) * (innerH / 2);
-  const xStepCount = points.length + (todayValue ? 1 : 0) - 1 || 1;
-  const xScale = (i: number) => padding.left + (i / xStepCount) * innerW;
+export interface TodayPoint {
+  id: string;
+  z: number;
+  tone: string;
+}
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(p.index)}`).join(' ');
-  const bandTop = yScale(1);
-  const bandBottom = yScale(-1);
-
-  const todayX = xScale(points.length); // 시계열 다음 슬롯, 별도 구간
+/** 과거 시계열(±1σ 밴드)과 오늘 스냅샷을 같은 σ 단위로, 구간을 나눠 분리 표시한다 (A-5) */
+export function IndexChart({ monthly, todayPoints }: { monthly: CompositeIndexPoint[]; todayPoints: TodayPoint[] }) {
+  const W = 560;
+  const H = 150;
+  const pad = 14;
+  const allZ = [...monthly.map((m) => m.index), ...todayPoints.map((p) => p.z), 1, -1];
+  const maxAbs = Math.max(...allZ.map(Math.abs), 1.5);
+  const y = (z: number) => H / 2 - (z / maxAbs) * (H / 2 - pad);
+  const histW = W * 0.6;
+  const todayW = W - histW - 24;
+  const xOf = (i: number) => (monthly.length > 1 ? (i / (monthly.length - 1)) * (histW - 20) + 10 : histW / 2);
+  const linePts = monthly.map((m, i) => `${xOf(i).toFixed(1)},${y(m.index).toFixed(1)}`).join(' ');
+  const areaPts = monthly.length ? `${xOf(0).toFixed(1)},${y(0).toFixed(1)} ${linePts} ${xOf(monthly.length - 1).toFixed(1)},${y(0).toFixed(1)}` : '';
+  const todayX = (i: number) => histW + 24 + (todayPoints.length > 1 ? (i / (todayPoints.length - 1)) * (todayW - 20) : todayW / 2);
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="w-full">
-      {/* ±1σ 정상 범위 밴드 */}
-      <rect x={padding.left} y={bandTop} width={innerW} height={bandBottom - bandTop} fill="#f0f0f0" />
-      <line x1={padding.left} y1={yScale(0)} x2={width - padding.right} y2={yScale(0)} stroke="#d4d4d4" strokeDasharray="4 4" />
-
-      <path d={linePath} fill="none" stroke="#171717" strokeWidth={2} />
-      {points.map((p, i) => (
-        <circle key={p.month} cx={xScale(i)} cy={yScale(p.index)} r={2.5} fill="#171717" />
+    <svg viewBox={`0 0 ${W} ${H + 18}`} className="index-chart">
+      <rect x={0} y={y(1)} width={W} height={Math.max(y(-1) - y(1), 1)} fill="#eef4fd" opacity={0.6} />
+      <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="#dde3ea" strokeDasharray="3 3" />
+      <line x1={histW + 10} x2={histW + 10} y1={pad} y2={H - pad} stroke="#e5eaf1" />
+      {monthly.length > 0 && <polygon points={areaPts} fill="#c7d9f5" opacity={0.5} />}
+      {monthly.length > 0 && <polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={2} />}
+      {monthly.map((m, i) => (
+        <circle key={m.month} cx={xOf(i)} cy={y(m.index)} r={3} fill="#2c4870" />
       ))}
-
-      {todayValue && (
-        <>
-          <line x1={xScale(points.length - 1)} y1={0} x2={xScale(points.length - 1)} y2={height} stroke="#e5e5e5" />
-          <circle cx={todayX} cy={yScale(todayValue.value)} r={5} fill={todayValue.color} stroke="white" strokeWidth={1.5} />
-          <text x={todayX} y={height - 6} textAnchor="middle" className="fill-neutral-500 text-[10px]">
-            오늘
-          </text>
-        </>
-      )}
-
-      <text x={width - padding.right + 6} y={bandTop + 4} className="fill-neutral-400 text-[10px]">
-        +1σ
-      </text>
-      <text x={width - padding.right + 6} y={bandBottom + 4} className="fill-neutral-400 text-[10px]">
-        −1σ
+      {todayPoints.map((p, i) => (
+        <circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={4.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={1.5} />
+      ))}
+      {monthly.map((m, i) => (
+        <text key={m.month} x={xOf(i)} y={H + 13} textAnchor="middle" className="index-x-label">
+          {Number(m.month.slice(5))}월
+        </text>
+      ))}
+      <text x={histW + 24 + todayW / 2} y={H + 13} textAnchor="middle" className="index-x-label index-today-label">
+        오늘
       </text>
     </svg>
   );

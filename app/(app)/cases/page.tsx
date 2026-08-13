@@ -1,35 +1,105 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCases } from '../../lib/state';
-import { CASE_STATUS_LABEL } from '../../lib/types';
+import { CASE_STATUS_LABEL, CASE_STATUS_TONE, type CaseStatus } from '../../lib/types';
+import { PageTitle } from '../../components/PageTitle';
+import { Badge } from '../../components/Badge';
+import { Icon } from '../../components/Icon';
+
+const FILTERS: ('전체' | CaseStatus)[] = ['전체', 'pending_validation', 'needs_review', 'quote_confirmed', 'contracted', 'settlement'];
 
 export default function CaseListPage() {
+  const router = useRouter();
   const { cases, loading } = useCases();
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<'전체' | CaseStatus>('전체');
+
+  const filtered = cases.filter(
+    (c) =>
+      (filter === '전체' || c.status === filter) &&
+      `${c.shipperName} ${c.route} ${c.caseNumber} ${c.cargoType}`.toLowerCase().includes(q.toLowerCase())
+  );
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-lg font-semibold text-neutral-900">화물 운송</h1>
-      <p className="mt-1 text-sm text-neutral-500">Case 하나를 선택하면 견적·계약·문서·정산으로 이동할 수 있습니다.</p>
+    <div className="page">
+      <PageTitle
+        eyebrow="SHIPMENT MANAGEMENT"
+        title="화물 운송"
+        desc="화물 운송 건을 등록해 견적 검증부터 계약·정산까지 한 곳에서 관리하세요."
+        action={
+          <Link href="/quotes/new" className="primary">
+            <Icon name="plus" /> 새 화물 운송 건 등록
+          </Link>
+        }
+      />
 
-      <ul className="mt-6 divide-y divide-neutral-200 rounded-lg border border-neutral-200 bg-white">
-        {cases.map((c) => (
-          <li key={c.id}>
-            <Link href={`/cases/${c.id}`} className="flex items-center justify-between px-4 py-3 text-sm hover:bg-neutral-50">
-              <div>
-                <p className="font-medium text-neutral-900">
-                  {c.caseNumber} · {c.shipperName}
-                </p>
-                <p className="text-neutral-500">{c.route}</p>
-              </div>
-              <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-neutral-700">
-                {CASE_STATUS_LABEL[c.status]}
-              </span>
-            </Link>
-          </li>
-        ))}
-        {!loading && cases.length === 0 && <li className="px-4 py-6 text-sm text-neutral-400">등록된 Case가 없습니다.</li>}
-      </ul>
-    </main>
+      <div className="filters card">
+        <label className="searchbox">
+          <Icon name="search" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="화주, 노선, Case 번호 검색" />
+        </label>
+        <div className="chips">
+          {FILTERS.map((x) => (
+            <button key={x} className={filter === x ? 'active' : ''} onClick={() => setFilter(x)}>
+              {x === '전체' ? '전체' : CASE_STATUS_LABEL[x]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="table-card card">
+        <div className="table-summary">
+          <b>전체 견적</b>
+          <span>{filtered.length}건</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>CASE 번호</th>
+              <th>화주 / 품목</th>
+              <th>노선</th>
+              <th>견적</th>
+              <th>상태</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((c) => (
+              <tr key={c.id} onClick={() => router.push(`/cases/${c.id}`)}>
+                <td>
+                  <b>{c.caseNumber}</b>
+                </td>
+                <td>
+                  <b>{c.shipperName}</b>
+                  <small>
+                    {c.cargoType} · {c.containerType}
+                  </small>
+                </td>
+                <td>{c.route}</td>
+                <td>
+                  <strong>${c.price.toLocaleString()}</strong>
+                </td>
+                <td>
+                  <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
+                </td>
+                <td>
+                  <Icon name="arrow" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!loading && filtered.length === 0 && (
+          <div className="empty">
+            <span>⌕</span>
+            <b>검색 결과가 없습니다.</b>
+            <small>검색어나 필터를 다시 확인해주세요.</small>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

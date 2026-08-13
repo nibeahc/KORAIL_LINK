@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useCases } from '../../../../lib/state';
-import { recommendClauses, SMGS_REFERENCE } from '../../../../lib/contractEngine';
+import { recommendClauses } from '../../../../lib/contractEngine';
 import { insertCaseStatusHistory, replaceCostLedger, upsertContract } from '../../../../lib/supabase';
 import { getRoute } from '../../../../lib/routeData';
 import type { ClauseStatus, ContractClause, CostLedgerLine, SignStatus } from '../../../../lib/types';
+import { CaseHeader } from '../../../../components/CaseHeader';
+import { CaseTabs } from '../../../../components/CaseTabs';
+import { Badge } from '../../../../components/Badge';
+import { Icon } from '../../../../components/Icon';
 
 const STATUS_LABEL: Record<ClauseStatus, string> = { accepted: '반영', excluded: '제외', modified: '수정' };
 
@@ -20,6 +24,7 @@ export default function CaseContractPage() {
   const [signStatus, setSignStatus] = useState<SignStatus>('none');
   const [signedAt, setSignedAt] = useState<string | undefined>();
   const [draftGenerated, setDraftGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [signing, setSigning] = useState(false);
 
   useEffect(() => {
@@ -38,23 +43,26 @@ export default function CaseContractPage() {
 
   if (!item) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <p className="text-sm text-neutral-500">Case를 찾을 수 없습니다.</p>
-      </main>
+      <div className="page">
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>Case를 찾을 수 없습니다.</p>
+      </div>
     );
   }
 
   if (item.costLedger.length === 0) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <h1 className="text-lg font-semibold text-neutral-900">계약</h1>
-        <p className="mt-3 text-sm text-neutral-500">
-          먼저 견적을 확정해야 계약을 진행할 수 있습니다.{' '}
-          <a href={`/cases/${item.id}/validation`} className="underline">
-            견적 검증으로 이동
-          </a>
-        </p>
-      </main>
+      <div className="case-workspace">
+        <CaseHeader item={item} />
+        <CaseTabs caseId={item.id} />
+        <div className="workspace-body">
+          <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+            먼저 견적을 확정해야 계약을 진행할 수 있습니다.{' '}
+            <a href={`/cases/${item.id}/validation`} style={{ color: 'var(--blue)' }}>
+              견적 검증으로 이동
+            </a>
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -68,6 +76,13 @@ export default function CaseContractPage() {
 
   function updateLedgerAmount(stageId: string, value: number) {
     setLedgerDraft((prev) => prev.map((l) => (l.stageId === stageId ? { ...l, contractAmount: value } : l)));
+  }
+
+  async function handleGenerateDraft() {
+    setGenerating(true);
+    await new Promise((r) => setTimeout(r, 900));
+    setDraftGenerated(true);
+    setGenerating(false);
   }
 
   async function handleRequestSign() {
@@ -87,182 +102,194 @@ export default function CaseContractPage() {
     const previousStatus = item!.status;
     setCasesAndPersist((prev) =>
       prev.map((c) =>
-        c.id === item!.id
-          ? { ...c, status: 'contracted', costLedger: ledgerDraft, contract: { clauses, signStatus: 'signed', signedAt: now } }
-          : c
+        c.id === item!.id ? { ...c, status: 'contracted', costLedger: ledgerDraft, contract: { clauses, signStatus: 'signed', signedAt: now } } : c
       )
     );
     await insertCaseStatusHistory(item!.id, previousStatus, 'contracted').catch(() => {});
     await upsertContract(item!.id, { clauses, contractAmount: contractTotal, signStatus: 'signed', signedAt: now }).catch(() => {});
-    await replaceCostLedger(item!.id, ledgerDraft.map((line) => ({
-      stageId: line.stageId,
-      stageName: line.stageName,
-      mode: line.mode,
-      costItem: line.stageName,
-      quotedAmount: line.quotedAmount,
-      contractAmount: line.contractAmount,
-      currency: line.currency,
-      sourceType: 'contract',
-    }))).catch(() => {});
+    await replaceCostLedger(
+      item!.id,
+      ledgerDraft.map((line) => ({
+        stageId: line.stageId,
+        stageName: line.stageName,
+        mode: line.mode,
+        costItem: line.stageName,
+        quotedAmount: line.quotedAmount,
+        contractAmount: line.contractAmount,
+        currency: line.currency,
+        sourceType: 'contract',
+      }))
+    ).catch(() => {});
     setSigning(false);
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-lg font-semibold text-neutral-900">계약</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        {item.caseNumber} · {route?.usesTCR ? 'TCR 경유 노선' : '중국 내륙 직통 노선'} — 특약 {clauses.length}개 추천
-      </p>
+    <div className="case-workspace">
+      <CaseHeader item={item} />
+      <CaseTabs caseId={item.id} />
 
-      <section className="mt-6">
-        <h2 className="text-sm font-medium text-neutral-700">적용 규정·특약 근거</h2>
-        <p className="mt-1 text-xs text-neutral-400">계약서를 바로 생성하지 않고, 왜 이 특약이 필요한지 먼저 보여줍니다.</p>
-        <div className="mt-3 space-y-3">
+      <div className="workspace-body">
+        <div className="validation-title">
+          <div>
+            <span className="section-kicker">CONTRACT WORKSPACE</span>
+            <h2>계약 특약 초안</h2>
+            <p>
+              {item.caseNumber} · {route?.usesTCR ? 'TCR 경유 노선' : '중국 내륙 직통 노선'} — 추천 특약 {clauses.length}개
+            </p>
+          </div>
+        </div>
+
+        <div className="notice">
+          <Icon name="info" />
+          <span>
+            <b>담당자 검토가 필요합니다.</b> 왜 이 특약이 필요한지 근거를 먼저 확인한 뒤 반영·제외·수정을 선택하세요.
+          </span>
+        </div>
+
+        <div className="clauses">
           {clauses.map((clause) => (
-            <div key={clause.id} className="rounded-lg border border-neutral-200 bg-white p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-neutral-900">{clause.title}</p>
-                  <p className="mt-1 text-sm text-neutral-600">{clause.reason}</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">{clause.basisType}</span>
-              </div>
-              {clause.basisSource && <p className="mt-2 text-xs text-neutral-400">근거 출처: {clause.basisSource}</p>}
-
+            <section className="card" key={clause.id}>
+              <header>
+                <h3>{clause.title}</h3>
+                <Badge tone={clause.basisType === '협약' ? 'blue' : clause.basisType === 'AI 리스크 권고' ? 'amber' : 'green'}>{clause.basisType}</Badge>
+              </header>
+              <p>{clause.reason}</p>
+              {clause.basisSource && (
+                <p style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>근거 출처: {clause.basisSource}</p>
+              )}
               {clause.status === 'modified' && (
                 <textarea
+                  className="clause-body-input"
                   value={clause.text}
                   disabled={locked}
                   onChange={(e) => updateClauseText(clause.id, e.target.value)}
-                  className="mt-3 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
                   rows={2}
                 />
               )}
-
-              <div className="mt-3 flex gap-2">
+              <div className="clause-edit-actions" style={{ marginTop: 10 }}>
                 {(['accepted', 'excluded', 'modified'] as ClauseStatus[]).map((s) => (
                   <button
                     key={s}
                     disabled={locked}
                     onClick={() => updateClauseStatus(clause.id, s)}
-                    className={`rounded-full px-3 py-1 text-xs disabled:opacity-50 ${
-                      clause.status === s ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600'
-                    }`}
+                    style={clause.status === s ? { background: 'var(--navy)', color: 'white', borderColor: 'var(--navy)' } : undefined}
                   >
                     {STATUS_LABEL[s]}
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
 
-        {!draftGenerated && (
-          <button
-            onClick={() => setDraftGenerated(true)}
-            className="mt-4 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-          >
-            계약서 초안 생성
+        {!draftGenerated && !generating && (
+          <button className="primary" onClick={handleGenerateDraft} style={{ marginTop: 16 }}>
+            <Icon name="spark" /> 계약서 초안 생성
           </button>
         )}
-      </section>
-
-      {draftGenerated && (
-        <section className="mt-8 rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-700">계약서 초안</h2>
-          <div className="mt-3 space-y-1 text-sm text-neutral-700">
-            <p>당사자: 코레일 ↔ {item.masterData.shipperName}</p>
-            <p>노선: {item.route}</p>
-            <p>운송조건: {item.masterData.incoterms}</p>
-            <p>계약금액: ${contractTotal.toLocaleString()}</p>
+        {generating && (
+          <div className="card loading">
+            <span className="spinner" />
+            <b>특약을 반영해 계약서 초안을 작성하고 있습니다...</b>
           </div>
+        )}
 
-          <div className="mt-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">본문 특약</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-700">
-              {clauses.filter((c) => c.status !== 'excluded').map((c) => (
-                <li key={c.id}>{c.text}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mt-4">
-            <p className="text-xs font-medium text-neutral-400">별첨 1 — 구간별 운임 명세 (견적 단계 Cost Ledger 기준)</p>
-            <table className="mt-2 w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-                  <th className="py-2">구간</th>
-                  <th className="py-2">항목</th>
-                  <th className="py-2 text-right">계약금액(USD)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledgerDraft.map((l) => (
-                  <tr key={l.stageId} className="border-b border-neutral-100 last:border-0">
-                    <td className="py-2">{l.stageName}</td>
-                    <td className="py-2 text-neutral-500">{l.mode}</td>
-                    <td className="py-2 text-right">
-                      <input
-                        type="number"
-                        disabled={locked}
-                        value={l.contractAmount}
-                        onChange={(e) => updateLedgerAmount(l.stageId, Number(e.target.value))}
-                        className="w-28 rounded-md border border-neutral-300 px-2 py-1 text-right text-sm disabled:bg-neutral-50"
-                      />
+        {draftGenerated && (
+          <>
+            <section className="card rate-schedule">
+              <div className="card-head">
+                <div>
+                  <span className="section-kicker">SCHEDULE OF RATES</span>
+                  <h3>별첨 1 — 구간별 운임 명세</h3>
+                </div>
+              </div>
+              <p className="schedule-desc">견적 확정 시 저장된 Cost Ledger를 그대로 옮긴 별첨입니다. 서명 전까지는 금액을 수정할 수 있습니다.</p>
+              <table className="schedule-table">
+                <thead>
+                  <tr>
+                    <th>구간</th>
+                    <th>운송 방식</th>
+                    <th>계약금액(USD)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgerDraft.map((l) => (
+                    <tr key={l.stageId}>
+                      <td>{l.stageName}</td>
+                      <td>{l.mode}</td>
+                      <td>
+                        <input
+                          type="number"
+                          disabled={locked}
+                          value={l.contractAmount}
+                          onChange={(e) => updateLedgerAmount(l.stageId, Number(e.target.value))}
+                          style={{ width: 100, textAlign: 'right', border: '1px solid #dce2e9', borderRadius: 6, padding: '4px 6px' }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2}>합계</td>
+                    <td>
+                      <b>${contractTotal.toLocaleString()}</b>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </tfoot>
+              </table>
+            </section>
 
-          <div className="mt-4 text-xs text-neutral-400">
-            참조 지식베이스: {SMGS_REFERENCE.map((r) => `${r.title}(${r.article})`).join(', ')}
-          </div>
+            <section className="card e-signature">
+              <div className="card-head">
+                <div>
+                  <span className="section-kicker">E-SIGNATURE</span>
+                  <h3>전자서명</h3>
+                </div>
+                {signStatus === 'signed' && <Badge tone="green">서명 완료</Badge>}
+              </div>
+              {signStatus === 'none' && (
+                <div className="sign-empty">
+                  <p>
+                    화주({item.masterData.shipperName})와 코레일 양측의 전자서명이 필요합니다.
+                  </p>
+                  <button className="primary" onClick={handleRequestSign} disabled={signing}>
+                    <Icon name="spark" /> {signing ? '요청 중…' : '전자서명 요청'}
+                  </button>
+                </div>
+              )}
+              {signStatus === 'pending' && (
+                <div className="doc-loading">
+                  <span className="spinner" />
+                  화주·코레일 서명을 요청하고 있습니다...
+                  <button className="primary" onClick={handleCompleteSign} disabled={signing} style={{ marginLeft: 12 }}>
+                    {signing ? '처리 중…' : '서명 완료 처리'}
+                  </button>
+                </div>
+              )}
+              {signStatus === 'signed' && signedAt && (
+                <div className="sign-done">
+                  <div>
+                    <b>{item.masterData.shipperName}</b>
+                    <small>화주 · 서명 완료 · {new Date(signedAt).toLocaleString('ko-KR')}</small>
+                  </div>
+                  <div>
+                    <b>코레일</b>
+                    <small>운송인 · 서명 완료 · {new Date(signedAt).toLocaleString('ko-KR')}</small>
+                  </div>
+                </div>
+              )}
+              <small className="hint">법적 효력이 있는 전자서명이 아니라 데모용 시뮬레이션입니다.</small>
+            </section>
 
-          <div className="mt-6 border-t border-neutral-200 pt-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">전자서명 (시뮬레이션 — 법적 효력 없음)</p>
-            <div className="mt-2 flex items-center gap-3">
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs ${
-                  signStatus === 'signed'
-                    ? 'bg-green-100 text-green-700'
-                    : signStatus === 'pending'
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-neutral-100 text-neutral-600'
-                }`}
-              >
-                {signStatus === 'signed' ? '서명 완료' : signStatus === 'pending' ? '서명 요청됨' : '서명 전'}
+            <div className="form-actions">
+              <span>
+                <Icon name="info" /> {signStatus === 'signed' ? '서명이 완료되어 Cost Ledger가 정산 기준선으로 고정되었습니다.' : '전자서명을 완료해야 계약이 확정됩니다.'}
               </span>
-              {signedAt && <span className="text-xs text-neutral-400">{new Date(signedAt).toLocaleString('ko-KR')}</span>}
             </div>
-
-            {signStatus === 'none' && (
-              <button
-                onClick={handleRequestSign}
-                disabled={signing}
-                className="mt-3 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
-                {signing ? '요청 중…' : '서명 요청'}
-              </button>
-            )}
-            {signStatus === 'pending' && (
-              <button
-                onClick={handleCompleteSign}
-                disabled={signing}
-                className="mt-3 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
-                {signing ? '처리 중…' : '서명 완료'}
-              </button>
-            )}
-            {signStatus === 'signed' && (
-              <p className="mt-3 text-sm text-neutral-500">
-                서명이 완료되어 특약·계약금액·Cost Ledger가 정산 기준선으로 고정되었습니다.
-              </p>
-            )}
-          </div>
-        </section>
-      )}
-    </main>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

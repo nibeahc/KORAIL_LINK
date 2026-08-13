@@ -16,6 +16,24 @@ export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
   settlement: '정산',
 };
 
+/** Badge 컴포넌트 tone(red/amber/green/blue 4종)에 매핑 */
+export const CASE_STATUS_TONE: Record<CaseStatus, 'red' | 'amber' | 'green' | 'blue'> = {
+  pending_validation: 'blue',
+  needs_review: 'amber',
+  quote_confirmed: 'green',
+  contracted: 'blue',
+  settlement: 'green',
+};
+
+/** Case 상태별 분포 도넛 차트 전용 — Badge보다 더 다양한 5색을 쓴다 */
+export const CASE_STATUS_DONUT_COLOR: Record<CaseStatus, string> = {
+  pending_validation: '#8b95a4',
+  needs_review: '#bd7217',
+  quote_confirmed: '#2865ba',
+  contracted: '#6a4fb0',
+  settlement: '#207c56',
+};
+
 /** 문서 값을 Case Master Data에 반영했을 때 남기는 변경이력 (B-4) */
 export interface FieldChange {
   id: string;

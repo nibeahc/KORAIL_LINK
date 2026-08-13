@@ -8,6 +8,8 @@ import { listDestinations, getRoute, buildRouteLabel } from '../../../lib/routeD
 import { buildQuoteDraft } from '../../../lib/quoteDraftEngine';
 import { insertCaseStatusHistory } from '../../../lib/supabase';
 import { QuoteValidationPanel } from '../../../components/QuoteValidationPanel';
+import { PageTitle } from '../../../components/PageTitle';
+import { Icon } from '../../../components/Icon';
 
 const CONTAINER_TYPES = ['20FT', '40FT', '40FT HC'];
 const INCOTERMS = ['FOB', 'CIF', 'CFR', 'EXW'];
@@ -35,6 +37,7 @@ export default function NewQuotePage() {
     incoterms: INCOTERMS[0],
   });
   const [lines, setLines] = useState<CostLedgerLine[]>([]);
+  const [generating, setGenerating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const masterData: CaseMasterData = useMemo(
@@ -60,9 +63,12 @@ export default function NewQuotePage() {
     setStep('draft');
   }
 
-  function handleGenerateDraft() {
+  async function handleGenerateDraft() {
+    setGenerating(true);
+    await new Promise((r) => setTimeout(r, 800));
     const draft = buildQuoteDraft(masterData);
     setLines(draft.lines);
+    setGenerating(false);
     setStep('validate');
   }
 
@@ -94,101 +100,91 @@ export default function NewQuotePage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-lg font-semibold text-neutral-900">견적 생성</h1>
+    <div className="page form-page">
+      <PageTitle eyebrow="NEW QUOTE" title="견적 생성" desc="화물 기본정보와 구간별 원가를 입력해 AI 견적 초안과 적정성 검증을 받으세요." />
 
       {step === 'form' && (
-        <form onSubmit={handleFormSubmit} className="mt-6 space-y-4 rounded-lg border border-neutral-200 bg-white p-5">
-          <p className="text-sm text-neutral-500">화물 기본정보를 입력해 Case Master Data 초기값을 만듭니다.</p>
-          <div className="grid grid-cols-2 gap-4">
-            <TextField label="화주명" value={form.shipperName} onChange={(v) => setForm((f) => ({ ...f, shipperName: v }))} required />
-            <TextField label="품목" value={form.cargoType} onChange={(v) => setForm((f) => ({ ...f, cargoType: v }))} required />
-            <SelectField
-              label="목적지"
-              value={form.destination}
-              options={listDestinations().map((r) => r.destination)}
-              onChange={(v) => setForm((f) => ({ ...f, destination: v }))}
-            />
-            <SelectField
-              label="컨테이너 타입"
-              value={form.containerType}
-              options={CONTAINER_TYPES}
-              onChange={(v) => setForm((f) => ({ ...f, containerType: v }))}
-            />
-            <NumberField
-              label="컨테이너 수량"
-              value={form.containerCount}
-              onChange={(v) => setForm((f) => ({ ...f, containerCount: v }))}
-              min={1}
-            />
-            <NumberField
-              label="총중량(t)"
-              value={form.totalWeightTon}
-              onChange={(v) => setForm((f) => ({ ...f, totalWeightTon: v }))}
-              min={0.1}
-              step={0.1}
-            />
-            <div>
-              <label className="block text-sm font-medium text-neutral-700">출발 예정일</label>
-              <input
-                type="date"
-                required
-                value={form.shipmentDate}
-                onChange={(e) => setForm((f) => ({ ...f, shipmentDate: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-              />
+        <form onSubmit={handleFormSubmit}>
+          <section className="form-section card">
+            <header>
+              <span>01</span>
+              <div>
+                <h2>기본 운송정보</h2>
+                <p>화물 및 운송 구간을 입력하세요.</p>
+              </div>
+            </header>
+            <div className="form-grid">
+              <TextField label="화주명" value={form.shipperName} set={(v) => setForm((f) => ({ ...f, shipperName: v }))} />
+              <TextField label="품목" value={form.cargoType} set={(v) => setForm((f) => ({ ...f, cargoType: v }))} />
+              <SelectField label="목적지" value={form.destination} set={(v) => setForm((f) => ({ ...f, destination: v }))} opts={listDestinations().map((r) => r.destination)} />
+              <SelectField label="컨테이너 타입" value={form.containerType} set={(v) => setForm((f) => ({ ...f, containerType: v }))} opts={CONTAINER_TYPES} />
+              <TextField label="컨테이너 수량" value={String(form.containerCount)} set={(v) => setForm((f) => ({ ...f, containerCount: Number(v) }))} type="number" suffix="대" />
+              <TextField label="총중량" value={String(form.totalWeightTon)} set={(v) => setForm((f) => ({ ...f, totalWeightTon: Number(v) }))} type="number" suffix="ton" />
+              <TextField label="출발 예정일" value={form.shipmentDate} set={(v) => setForm((f) => ({ ...f, shipmentDate: v }))} type="date" />
+              <SelectField label="운송조건" value={form.incoterms} set={(v) => setForm((f) => ({ ...f, incoterms: v }))} opts={INCOTERMS} />
             </div>
-            <SelectField
-              label="운송조건"
-              value={form.incoterms}
-              options={INCOTERMS}
-              onChange={(v) => setForm((f) => ({ ...f, incoterms: v }))}
-            />
+          </section>
+          <div className="form-actions">
+            <span>
+              <Icon name="info" /> 등록 즉시 내부 유사 견적 및 시장정보 분석이 시작됩니다.
+            </span>
+            <div>
+              <button className="primary" type="submit">
+                <Icon name="arrow" /> 다음: 구간별 원가 입력
+              </button>
+            </div>
           </div>
-          <button type="submit" className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800">
-            다음: 구간별 원가 문서 업로드
-          </button>
         </form>
       )}
 
       {step === 'draft' && (
-        <div className="mt-6 space-y-4 rounded-lg border border-neutral-200 bg-white p-5">
-          <p className="text-sm text-neutral-500">
-            구간별 원가 문서를 업로드하세요. (데모 단계 — 실제 파일 내용은 읽지 않고, Case 정보를 바탕으로 구간별 금액을 산출합니다.)
+        <section className="card quote-autofill">
+          <span className="section-kicker">COST DOCUMENTS</span>
+          <h2>구간별 원가 문서 업로드</h2>
+          <p className="quote-autofill-desc">
+            노선의 실제 구간 구성에 맞춰 AI가 구간별 금액을 산출합니다. 데모 단계라 실제 파일 내용은 읽지 않고, 방금 입력한 화물정보를 바탕으로 결정론적으로 생성합니다.
           </p>
-          <input type="file" multiple className="block text-sm text-neutral-600" />
-          <button
-            onClick={handleGenerateDraft}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-          >
-            견적 초안 생성
-          </button>
-        </div>
+          {generating ? (
+            <div className="doc-loading">
+              <span className="spinner" />
+              구간별 원가를 산출하고 있습니다...
+            </div>
+          ) : (
+            <button className="primary" onClick={handleGenerateDraft}>
+              <Icon name="spark" /> 구간별 원가 산출 및 견적 초안 생성
+            </button>
+          )}
+        </section>
       )}
 
       {step === 'validate' && (
-        <div className="mt-6 space-y-6">
-          <div className="rounded-lg border border-neutral-200 bg-white p-5">
-            <h2 className="text-sm font-medium text-neutral-700">구간별 견적 (금액은 직접 수정할 수 있습니다)</h2>
-            <table className="mt-3 w-full text-sm">
+        <>
+          <section className="card quote-draft-result">
+            <div className="card-head">
+              <div>
+                <span className="section-kicker">DRAFT QUOTE</span>
+                <h2>구간별 견적 (직접 수정 가능)</h2>
+              </div>
+            </div>
+            <table>
               <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs text-neutral-400">
-                  <th className="py-2">구간</th>
-                  <th className="py-2">항목</th>
-                  <th className="py-2 text-right">금액(USD)</th>
+                <tr>
+                  <th>구간</th>
+                  <th>항목</th>
+                  <th>금액(USD)</th>
                 </tr>
               </thead>
               <tbody>
                 {lines.map((line) => (
-                  <tr key={line.stageId} className="border-b border-neutral-100 last:border-0">
-                    <td className="py-2">{line.stageName}</td>
-                    <td className="py-2 text-neutral-500">{line.mode}</td>
-                    <td className="py-2 text-right">
+                  <tr key={line.stageId}>
+                    <td>{line.stageName}</td>
+                    <td>{line.mode}</td>
+                    <td>
                       <input
                         type="number"
                         value={line.quotedAmount}
                         onChange={(e) => updateLineAmount(line.stageId, Number(e.target.value))}
-                        className="w-28 rounded-md border border-neutral-300 px-2 py-1 text-right text-sm"
+                        style={{ width: 100, textAlign: 'right', border: '1px solid #dce2e9', borderRadius: 6, padding: '4px 6px' }}
                       />
                     </td>
                   </tr>
@@ -196,94 +192,46 @@ export default function NewQuotePage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={2} className="pt-2 text-right text-xs text-neutral-400">
-                    합계
+                  <td colSpan={2}>합계</td>
+                  <td>
+                    <b>${total.toLocaleString()}</b>
                   </td>
-                  <td className="pt-2 text-right font-semibold">${total.toLocaleString()}</td>
                 </tr>
               </tfoot>
             </table>
-          </div>
+            <button className="primary" onClick={handleConfirm} disabled={submitting || lines.length === 0}>
+              <Icon name="check" /> {submitting ? '확정 중…' : '견적 확정'}
+            </button>
+          </section>
 
-          <div>
-            <h2 className="text-sm font-medium text-neutral-700">AI 견적 적정성 검증</h2>
-            <div className="mt-3">
-              <QuoteValidationPanel masterData={masterData} total={total} />
-            </div>
-          </div>
-
-          <button
-            onClick={handleConfirm}
-            disabled={submitting || lines.length === 0}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-          >
-            {submitting ? '확정 중…' : '견적 확정'}
-          </button>
-        </div>
+          <QuoteValidationPanel masterData={masterData} total={total} />
+        </>
       )}
-    </main>
-  );
-}
-
-function TextField({ label, value, onChange, required }: { label: string; value: string; onChange: (v: string) => void; required?: boolean }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-neutral-700">{label}</label>
-      <input
-        type="text"
-        required={required}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-      />
     </div>
   );
 }
 
-function NumberField({
-  label,
-  value,
-  onChange,
-  min,
-  step,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  step?: number;
-}) {
+function TextField({ label, value, set, type = 'text', suffix }: { label: string; value: string; set: (v: string) => void; type?: string; suffix?: string }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-neutral-700">{label}</label>
-      <input
-        type="number"
-        required
-        min={min}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-      />
-    </div>
+    <label className="field">
+      <span>{label}</span>
+      <div>
+        <input required type={type} value={value} onChange={(e) => set(e.target.value)} />
+        {suffix && <em>{suffix}</em>}
+      </div>
+    </label>
   );
 }
 
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function SelectField({ label, value, set, opts }: { label: string; value: string; set: (v: string) => void; opts: string[] }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-neutral-700">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
+    <label className="field">
+      <span>{label}</span>
+      <select value={value} onChange={(e) => set(e.target.value)}>
+        {opts.map((o) => (
+          <option key={o}>{o}</option>
         ))}
       </select>
-    </div>
+    </label>
   );
 }

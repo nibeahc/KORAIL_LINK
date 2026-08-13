@@ -37,19 +37,32 @@ function containerTypeSimilarity(a: string, b: string): number {
   return 0;
 }
 
-export function computeSimilarity(target: QuoteTarget, candidate: HistoricalQuote): number {
-  const routeScore = target.route === candidate.route ? 1 : 0;
+export interface SimilarityBreakdown {
+  routeMatch: boolean;
+  containerScore: number;
+  timingScore: number;
+  cargoMatch: boolean;
+  total: number;
+}
+
+export function computeSimilarityBreakdown(target: QuoteTarget, candidate: HistoricalQuote): SimilarityBreakdown {
+  const routeMatch = target.route === candidate.route;
   const containerScore = containerTypeSimilarity(target.containerType, candidate.containerType);
   const monthsDiff = monthsBetween(target.shipmentDate, candidate.contractDate);
   const timingScore = monthsDiff > TIMING_WINDOW_MONTHS ? 0 : 1 - monthsDiff / TIMING_WINDOW_MONTHS;
-  const cargoScore = target.cargoType === candidate.cargoType ? 1 : 0;
+  const cargoMatch = target.cargoType === candidate.cargoType;
 
-  return (
-    routeScore * SIMILARITY_WEIGHTS.route +
+  const total =
+    (routeMatch ? 1 : 0) * SIMILARITY_WEIGHTS.route +
     containerScore * SIMILARITY_WEIGHTS.containerType +
     timingScore * SIMILARITY_WEIGHTS.timing +
-    cargoScore * SIMILARITY_WEIGHTS.cargoType
-  );
+    (cargoMatch ? 1 : 0) * SIMILARITY_WEIGHTS.cargoType;
+
+  return { routeMatch, containerScore, timingScore, cargoMatch, total };
+}
+
+export function computeSimilarity(target: QuoteTarget, candidate: HistoricalQuote): number {
+  return computeSimilarityBreakdown(target, candidate).total;
 }
 
 export interface SimilarQuoteMatch {
