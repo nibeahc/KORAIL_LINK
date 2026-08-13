@@ -117,6 +117,28 @@ export function sigmaFromMatches(matches: SimilarMatch[], baseline: number): num
 export type VerdictTone = "green" | "amber" | "red";
 export type Verdict = { label: string; tone: VerdictTone; diffPct: number; sigma: number; baseline: number };
 
+/** 최근 시황 변동을 과거 유사 견적 중앙값에 적용하는 보정값(%)이다. */
+export function liveMarketAdjustmentPct(series: Partial<Record<'usdKrw' | 'cnyKrw' | 'brent' | 'kcci' | 'kci', MarketPoint[]>>) {
+  const change = (key: keyof typeof series) => {
+    const values = series[key];
+    if (!values || values.length < 2 || values[0].value === 0) return 0;
+    return ((values.at(-1)!.value - values[0].value) / values[0].value) * 100;
+  };
+  // 환율 35%, 유가 25%, 해상운임 지수 25%, 중국 구간 지수 15%.
+  return change('usdKrw') * 0.35 + change('cnyKrw') * 0.05 + change('brent') * 0.25 + change('kcci') * 0.20 + change('kci') * 0.15;
+}
+
+export function verdictWithLiveMarket(price: number, matches: SimilarMatch[], series: Partial<Record<'usdKrw' | 'cnyKrw' | 'brent' | 'kcci' | 'kci', MarketPoint[]>>) {
+  const base = verdictFromQuote(price, matches);
+  const adjustmentPct = liveMarketAdjustmentPct(series);
+  const baseline = base.baseline * (1 + adjustmentPct / 100);
+  const diffPct = baseline === 0 ? 0 : ((price - baseline) / baseline) * 100;
+  const absDiff = Math.abs(diffPct);
+  const tone: VerdictTone = absDiff <= 0.5 * base.sigma ? 'green' : absDiff <= 1.5 * base.sigma ? 'amber' : 'red';
+  const label = tone === 'green' ? '적정 수준' : tone === 'amber' ? (diffPct >= 0 ? '다소 높음' : '다소 낮음') : '확인 필요';
+  return { ...base, baseline, diffPct, tone, label, adjustmentPct };
+}
+
 // 절대값(|diffPct|) 기준으로 등급을 매겨서, 시장가 대비 지나치게 낮은 견적도 이상치로 잡는다
 // (2026-08-12, 팀 피드백 반영 — 기존 버전은 diffPct<=0이면 무조건 "유리한 견적"으로 판정해서,
 // 원가 항목 누락 가능성이 있는 지나치게 낮은 견적을 놓쳤다).

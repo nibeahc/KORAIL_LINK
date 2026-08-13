@@ -80,6 +80,27 @@ const decoyRoutes: HistoricalQuote[] = [
   { id: "H-284", origin: "오봉", destination: "알마티", containerType: "40FT HC", cargoCategory: "자동차부품", transportMonth: "2026-08", price: 3480, contractDate: "2026-08-01" },
 ];
 
+/**
+ * 데모용 상세 계약 이력. 같은 노선·컨테이너라도 운송월, 품목, 계약일, 단가가
+ * 달라지는 실제 운영 데이터 형태를 재현한다. 화면의 유사도/중앙값/분산 판정은
+ * 이 풀을 사용하며 외부 고객·계약 정보는 포함하지 않는다.
+ */
+const detailedDemoQuotes: HistoricalQuote[] = Array.from({ length: 72 }, (_, index) => {
+  const base = almatyRoute40FT[index % almatyRoute40FT.length];
+  const month = 3 + (index % 6);
+  const day = String(2 + ((index * 7) % 25)).padStart(2, '0');
+  const cargos = [base.cargoCategory, '전자부품', '건설장비 부품', '산업용 자재'];
+  return {
+    ...base,
+    id: `DEMO-${String(index + 1).padStart(3, '0')}`,
+    cargoCategory: cargos[index % cargos.length],
+    transportMonth: `2026-${String(month).padStart(2, '0')}`,
+    contractDate: `2026-${String(month).padStart(2, '0')}-${day}`,
+    // 계절/연료비/선복 상황을 반영한 ±6% 범위의 상세 목업 단가
+    price: Math.round(base.price * (0.94 + ((index * 17) % 121) / 1000)),
+  };
+});
+
 export const historicalQuotes: HistoricalQuote[] = [
   ...almatyRoute40FT,
   ...almatyRouteOther,
@@ -88,6 +109,7 @@ export const historicalQuotes: HistoricalQuote[] = [
   ...tashkentRoute40FT,
   ...astanaRoute40FT,
   ...decoyRoutes,
+  ...detailedDemoQuotes,
 ];
 
 export type MarketPoint = { date: string; value: number };

@@ -4,8 +4,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { CaseItem, CaseStatus } from "./lib/types";
 import { historicalQuotes, marketSeries } from "./lib/marketData";
-import { buildMarketIndexSeries, detectAnomaly, matchSimilarQuotes, parseContainerType, parseRoute, toTransportMonth, verdictFromQuote, windowChangePct, type Verdict } from "./lib/quoteEngine";
-import { DOCUMENT_TYPES, DOCUMENT_INFO, buildDocumentExtraction, buildInvoiceComparison, type DocumentType, type DocState, type InvoiceComparison } from "./lib/documentEngine";
+import { buildMarketIndexSeries, detectAnomaly, matchSimilarQuotes, parseContainerType, parseRoute, toTransportMonth, verdictFromQuote, verdictWithLiveMarket, windowChangePct, type Verdict } from "./lib/quoteEngine";
+import { DOCUMENT_TYPES, DOCUMENT_INFO, buildDocumentExtraction, buildInvoiceComparison, type DocumentType, type DocState, type DocumentExtraction, type InvoiceComparison } from "./lib/documentEngine";
 import { newsArticles, type NewsArticle, type NewsCategory } from "./lib/newsData";
 import { buildCausalAnalysis, buildQuotePressureAnalysis, buildSubstitutionSignal, type IndicatorInput, type QuotePressureAnalysis } from "./lib/causalAnalysis";
 import type { MarketPoint } from "./lib/marketData";
@@ -15,7 +15,7 @@ import { buildContractClauses, SMGS_REFERENCE_ITEMS, type ContractClause } from 
 import { seasonalityForDate } from "./lib/seasonality";
 import { buildTaxInvoice } from "./lib/taxInvoiceEngine";
 import { answerDispute, type ChatMessage } from "./lib/disputeChatEngine";
-import { listCases, createCase as createSupabaseCase, updateCaseStatus, uploadCaseDocument, saveDocumentRecord, saveTaxInvoice, saveDisputeMessage, saveContract, isPermissionError } from "./lib/supabase";
+import { ensureAnonymousSession, listCases, createCase as createSupabaseCase, updateCaseStatus, uploadCaseDocument, saveDocumentRecord, saveTaxInvoice, saveDisputeMessage, saveContract, saveInvoiceReconciliation, isPermissionError } from "./lib/supabase";
 
 type SupabaseCaseRow = {
   id: string;
@@ -65,6 +65,7 @@ const initialCases: CaseItem[] = [
   {id:"KORAIL-2026-004",shipper:"Mirae Chemical",route:"의왕 → 비슈케크",item:"산업 소재",container:"40FT × 1",forwarder:"코레일",price:3650,status:"견적 확정",date:"2026.08.06",departure:"2026-08-15",weight:22},
   {id:"KORAIL-2026-005",shipper:"Seoul Trading",route:"오봉 → 아스타나",item:"소비재",container:"40FT × 4",forwarder:"코레일",price:4120,status:"계약",date:"2026.08.03",departure:"2026-08-12",weight:64},
 ];
+const LOCAL_CASES_KEY = 'korail-link:cases:v1';
 
 const Icon = ({name}:{name:string}) => <span className="icon" aria-hidden>{({home:"⌂",case:"▤",search:"⌕",contract:"◇",bill:"▦",settings:"⚙",bell:"♢",plus:"＋",arrow:"→",check:"✓",info:"i",spark:"✦",external:"↗",copy:"▣",download:"↓",print:"⌘",waybill:"⇄",bl:"⚓",time:"◷"} as Record<string,string>)[name] || "•"}</span>;
 const NAV_ICON_SRC:Record<string,string>={home:"/icons/nav-home.svg",search:"/icons/nav-search.svg",case:"/icons/nav-shipment.svg"};
@@ -78,11 +79,11 @@ const caseHref = (id:string,status:CaseStatus) => `/cases/${id}?tab=${encodeURIC
 
 // Case 하나에 대한 검증 결과(유사 Case 매칭·판정·시황 이상탐지)를 한 번만 계산해
 // 견적 검증 탭, 정산 탭의 이의제기 챗봇 등 여러 화면이 같은 결과를 공유하도록 한다.
-function buildValidation(item: CaseItem) {
+function buildValidation(item: CaseItem, liveSeries?: Partial<Record<'usdKrw' | 'cnyKrw' | 'brent' | 'kcci' | 'kci', MarketPoint[]>>) {
   const { origin, destination } = parseRoute(item.route);
   const query = { origin, destination, containerType: parseContainerType(item.container), cargoCategory: item.item, transportMonth: toTransportMonth(item.departure) };
   const matches = matchSimilarQuotes(query, historicalQuotes);
-  const verdict = verdictFromQuote(item.price, matches);
+  const verdict = liveSeries ? verdictWithLiveMarket(item.price, matches, liveSeries) : verdictFromQuote(item.price, matches);
   const usdKrw = detectAnomaly(marketSeries.usdKrw);
   const brent = detectAnomaly(marketSeries.brent);
   const cnyKrw = detectAnomaly(marketSeries.cnyKrw);
@@ -125,9 +126,20 @@ export default function Home() {
   const casesRef = useRef(cases);
   const notify=(m:string)=>{setToast(m);setTimeout(()=>setToast(""),2300)};
   useEffect(() => { casesRef.current = cases; }, [cases]);
+  useEffect(() => { ensureAnonymousSession().catch(() => {}); }, []);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(LOCAL_CASES_KEY);
+      const parsed = saved ? JSON.parse(saved) as CaseItem[] : null;
+      if (Array.isArray(parsed) && parsed.length) setCases(parsed);
+    } catch { /* 브라우저 저장소가 비어 있거나 사용할 수 없으면 초기 예시 데이터를 사용한다. */ }
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem(LOCAL_CASES_KEY, JSON.stringify(cases)); } catch { /* 저장소 제한 시 메모리 상태는 계속 유지한다. */ }
+  }, [cases]);
   useEffect(() => {
     let active = true;
-    listCases().then(rows => {
+    ensureAnonymousSession().then(() => listCases()).then(rows => {
       if (!active || rows.length === 0) return;
       const remoteCases = rows.map(row => fromSupabaseCase(row as SupabaseCaseRow));
       // 데모 목록은 피그마 시나리오의 5건을 항상 보여준다. 저장소에 아직 4건만
@@ -146,6 +158,21 @@ export default function Home() {
       const caseId = location.pathname.match(/\/cases\/([^/]+)/)?.[1];
       if (!caseId) return;
       const documentType = input.id.replace('upload-', '').replace('-settlement', '');
+      const apiDocumentType = documentType === 'Packing List' || documentType === 'Invoice'
+        ? 'packing_list'
+        : documentType === 'B/L' ? 'bl'
+        : documentType.includes('운송장') ? 'waybill' : 'contract';
+      const form = new FormData();
+      form.set('file', file);
+      form.set('documentType', apiDocumentType);
+      const extractionUrl = documentType === 'Invoice' ? '/api/invoices/extract' : '/api/documents/extract';
+      fetch(extractionUrl, { method: 'POST', body: form })
+        .then(async response => {
+          const result = await response.json() as { snapshot?: Record<string, string | null>; invoiceNumber?: string | null; lineItems?: Array<{ label: string; amount: number; currency: 'USD' }>; error?: string };
+          if (!response.ok || (documentType === 'Invoice' ? !result.lineItems : !result.snapshot)) throw new Error(result.error ?? 'OCR 추출에 실패했습니다.');
+          document.dispatchEvent(new CustomEvent('korail:document-ocr', { detail: { caseId: decodeURIComponent(caseId), documentType, fileName: file.name, snapshot: result.snapshot, invoiceLineItems: result.lineItems } }));
+        })
+        .catch(error => document.dispatchEvent(new CustomEvent('korail:document-ocr', { detail: { caseId: decodeURIComponent(caseId), documentType, fileName: file.name, error: error instanceof Error ? error.message : 'OCR 추출에 실패했습니다.' } })));
       try {
         const storagePath = await uploadCaseDocument(decodeURIComponent(caseId), file);
         await saveDocumentRecord({ caseId: decodeURIComponent(caseId), file, documentType, storagePath });
@@ -307,6 +334,14 @@ function MarketIndexChart({monthly,todayPoints}:{monthly:{month:string;avgZ:numb
 function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;displayName:string}){
  const [drawer,setDrawer]=useState<DrawerState|null>(null);
  const [chatOpen,setChatOpen]=useState(false);
+ const [liveRates,setLiveRates]=useState<Record<string,number>>({});
+ const [liveSeries,setLiveSeries]=useState<Record<string,MarketPoint[]>>({});
+ const [liveNews,setLiveNews]=useState<(NewsArticle&{url?:string})[]>([]);
+ useEffect(()=>{
+  fetch('/api/market').then(r=>r.ok?r.json():Promise.reject()).then((data:{rates?:Record<string,number>;series?:Record<string,MarketPoint[]>})=>{setLiveRates(data.rates??{});setLiveSeries(data.series??{});}).catch(()=>{});
+  fetch('/api/news?refresh=1').then(r=>r.ok?r.json():Promise.reject()).then((data:{articles?:Array<{id:string;category:NewsCategory;title:string;summary:string;source:string;publishedAt:string;url:string}>})=>setLiveNews((data.articles??[]).map(article=>({...article,date:article.publishedAt.slice(0,10)})))).catch(()=>{});
+ },[]);
+ const briefingNews=liveNews.length?liveNews:newsArticles;
  const usdKrw=detectAnomaly(marketSeries.usdKrw);
  const brent=detectAnomaly(marketSeries.brent);
  const cnyKrw=detectAnomaly(marketSeries.cnyKrw);
@@ -353,7 +388,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
  // WeeklyBriefing(정보 검색 화면)과 동일한 원칙이며, 대시보드 홈 화면에도 같은 우선순위를 반영한다.
  const briefPriorityCats: NewsCategory[] = ['규제','TCR','지정학','연운항'];
  const eventBriefs = briefPriorityCats.map(cat => {
-   const items = newsArticles.filter(n=>n.category===cat).sort((a,b)=>b.date.localeCompare(a.date));
+   const items = briefingNews.filter(n=>n.category===cat).sort((a,b)=>b.date.localeCompare(a.date));
    return items.length ? { cat, title: items[0].title, count: items.length } : null;
  }).filter((x): x is { cat: NewsCategory; title: string; count: number } => x !== null);
  // "능동적 알림"을 대체하는 로직 — 벨 아이콘 트리거 대신, 홈 화면 진입 즉시 어떤 Case가
@@ -413,13 +448,20 @@ function HomeChatbot({item,close}:{item:CaseItem;close:()=>void}){
  const logRef=useRef<HTMLDivElement>(null);
  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')close()};addEventListener('keydown',onKey);return()=>removeEventListener('keydown',onKey)},[close]);
  useEffect(()=>{logRef.current?.scrollTo({top:logRef.current.scrollHeight,behavior:'smooth'})},[messages]);
- const send=()=>{
+ const send=async()=>{
   const question=input.trim();
   if(!question)return;
   const validation=buildValidation(item);
-  const answer=answerDispute(question,item,validation.verdict,buildPressure(validation),buildInvoiceComparison(item));
-  setMessages(m=>[...m,{role:'user',text:question},{role:'bot',text:answer}]);
+  setMessages(m=>[...m,{role:'user',text:question}]);
   setInput('');
+  try{
+   const response=await fetch('/api/dispute-chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question,history:messages.slice(-6),context:{caseId:item.id,shipper:item.shipper,route:item.route,cargo:item.item,container:item.container,quoteAmount:item.price,weightTon:item.weight,validation:validation.verdict}})});
+   const result=await response.json() as {answer?:string};
+   if(!response.ok||!result.answer)throw new Error();
+   setMessages(m=>[...m,{role:'bot',text:result.answer!}]);
+  }catch{
+   setMessages(m=>[...m,{role:'bot',text:answerDispute(question,item,validation.verdict,buildPressure(validation),buildInvoiceComparison(item))}]);
+  }
  };
  return <><button className="chat-overlay" aria-label="챗봇 닫기" onClick={close}/><section className="home-chat-modal" role="dialog" aria-modal="true" aria-labelledby="home-chat-title">
   <header><h2 id="home-chat-title">AI 챗봇</h2><button type="button" aria-label="닫기" onClick={close}>×</button></header>
@@ -532,13 +574,55 @@ function QuotePageChatbot(){const [open,setOpen]=useState(false);return <><butto
 function FormSection({n,title,desc,children}:{n:string,title:string,desc:string,children:React.ReactNode}){return <section className="form-section card"><header><span>{n}</span><div><h2>{title}</h2><p>{desc}</p></div></header>{n==='01'&&<BasicInfoAutoFill/>}{children}{n==='02'&&<QuotePageChatbot/>}</section>}
 
 
-function CaseWorkspace({item,initialTab,initialContractDraft=false,setCases,notify}:{item:CaseItem;initialTab?:string;initialContractDraft?:boolean;setCases:React.Dispatch<React.SetStateAction<CaseItem[]>>;notify:(m:string)=>void}){const [tab,setTab]=useState(initialTab??'개요');const [drawer,setDrawer]=useState<DrawerState|null>(null);const [modal,setModal]=useState(false);const [quoteDeferred,setQuoteDeferred]=useState(false);const [draft,setDraft]=useState(initialContractDraft);const [loading,setLoading]=useState(false);const [clauses,setClauses]=useState<ContractClause[]>(()=>initialContractDraft?buildContractClauses(item,buildValidation(item).routePath):[]);const [docs,setDocs]=useState<Record<DocumentType,DocState>>({계약서:{status:'idle'},"Packing List":{status:'idle'},화물운송장:{status:'idle'},"B/L":{status:'idle'},Invoice:{status:'idle'}});
+function CaseWorkspace({item,initialTab,initialContractDraft=false,setCases,notify}:{item:CaseItem;initialTab?:string;initialContractDraft?:boolean;setCases:React.Dispatch<React.SetStateAction<CaseItem[]>>;notify:(m:string)=>void}){const [tab,setTab]=useState(initialTab??'개요');const [drawer,setDrawer]=useState<DrawerState|null>(null);const [modal,setModal]=useState(false);const [quoteDeferred,setQuoteDeferred]=useState(false);const [draft,setDraft]=useState(initialContractDraft);const [loading,setLoading]=useState(false);const [clauses,setClauses]=useState<ContractClause[]>(()=>initialContractDraft?buildContractClauses(item,buildValidation(item).routePath):[]);const [docs,setDocs]=useState<Record<DocumentType,DocState>>({계약서:{status:'idle'},"Packing List":{status:'idle'},화물운송장:{status:'idle'},"B/L":{status:'idle'},Invoice:{status:'idle'}});const [liveQuoteSeries,setLiveQuoteSeries]=useState<Partial<Record<'usdKrw'|'cnyKrw'|'brent'|'kcci'|'kci',MarketPoint[]>>>({});
+ useEffect(()=>{fetch('/api/market').then(response=>response.ok?response.json():Promise.reject()).then((data:{series?:Partial<Record<'usdKrw'|'cnyKrw'|'brent'|'kcci'|'kci',MarketPoint[]>>})=>setLiveQuoteSeries(data.series??{})).catch(()=>{});},[]);
+ useEffect(()=>{
+  const onOcr=(event:Event)=>{
+   const detail=(event as CustomEvent<{caseId:string;documentType:string;fileName:string;snapshot?:Record<string,string|null>;invoiceLineItems?:Array<{label:string;amount:number;currency:'USD';isNew?:boolean}>;error?:string}>).detail;
+   if(!detail||detail.caseId!==item.id)return;
+   const type=detail.documentType as DocumentType;
+   if(detail.error){setDocs(current=>({...current,[type]:{status:'idle',error:detail.error}}));notify(detail.error);return;}
+   setDocs(current=>({...current,[type]:{status:'done',fileName:detail.fileName,snapshot:detail.snapshot,invoiceLineItems:detail.invoiceLineItems?.map(line=>({...line,isNew:false})),mode:'ocr'}}));
+   if (type === 'Invoice' && detail.invoiceLineItems?.length) saveInvoiceReconciliation({ caseId: item.id, items: detail.invoiceLineItems }).catch(() => {});
+   notify(`${type} OCR 추출을 완료했습니다.`);
+  };
+  document.addEventListener('korail:document-ocr',onOcr);
+  return()=>document.removeEventListener('korail:document-ocr',onOcr);
+ },[item.id,notify]);
 // 계약서·Packing List·화물운송장은 이 운송 건의 데이터를 채워나가는 "서류 처리" 목적이고,
 // Invoice만 이미 확정된 계약금액과 실제 청구액을 맞춰보는 "정산 대조" 목적이라 성격이 다르다.
 // 그래서 Invoice는 문서 탭이 아니라 정산 탭에서 직접 업로드한다.
-const uploadDoc=(type:DocumentType,fileName:string)=>{
+const uploadDoc=async(type:DocumentType,file?:File|string)=>{
+ const fileName=typeof file==='string'?file:file?.name ?? 'AI 생성 초안';
+ if(typeof file==='string'){
+   setDocs(d=>({...d,[type]:{status:'loading',fileName}}));
+   setTimeout(()=>setDocs(d=>({...d,[type]:{status:'done',fileName}})),300);
+   return;
+ }
  setDocs(d=>({...d,[type]:{status:'loading',fileName}}));
- setTimeout(()=>{setDocs(d=>({...d,[type]:{status:'done',fileName}}));notify(`${type} 문서에서 정보를 추출했습니다.`)},900);
+ try {
+   if (!file) {
+     const {origin,destination}=parseRoute(item.route);
+     const response=await fetch('/api/documents/draft',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({shipperName:item.shipper,consignee:null,cargoType:item.item,origin,destination,container:item.container,totalWeightTon:item.weight,incoterms:'CIF'})});
+     const result=await response.json() as {fields?:Array<{label:string;value:string|null}>;error?:string};
+     const fields=result.fields;
+     if(!response.ok||!fields)throw new Error(result.error??'AI 초안 생성에 실패했습니다.');
+     setDocs(d=>({...d,[type]:{status:'done',fileName,snapshot:Object.fromEntries(fields.map(field=>[field.label,field.value])),mode:'llm'}}));
+   } else {
+     const apiType:Partial<Record<DocumentType,string>>={'Packing List':'packing_list','Invoice':'packing_list'};
+     const detectedType=apiType[type] ?? (type==='B/L'?'bl':type==='화물운송장'?'waybill':'contract');
+     const form=new FormData();form.set('file',file);form.set('documentType',detectedType);
+     const response=await fetch('/api/documents/extract',{method:'POST',body:form});
+     const result=await response.json() as {snapshot?:Record<string,string|null>;error?:string};
+     if(!response.ok||!result.snapshot)throw new Error(result.error??'OCR 추출에 실패했습니다.');
+     setDocs(d=>({...d,[type]:{status:'done',fileName,snapshot:result.snapshot,mode:'ocr'}}));
+   }
+   notify(`${type} 문서에서 AI 추출을 완료했습니다.`);
+ } catch(error) {
+   const message=error instanceof Error?error.message:'문서 처리 중 오류가 발생했습니다.';
+   setDocs(d=>({...d,[type]:{status:'idle',fileName:undefined,error:message}}));
+   notify(message);
+ }
 };// 3장 두 축(① 운임 인텔리전스 / ② Single Data Entry+업무 연결)을 탭바에서도 시각적으로 구분한다.
 const tabGroups:[string|null,string[]][]=[[null,['개요']],['운임 인텔리전스',['견적 검증','참고정보']],['업무 연결',['계약','문서','정산']]];
 useEffect(()=>{const next=`/cases/${encodeURIComponent(item.id)}?tab=${encodeURIComponent(tab)}`;if(location.pathname+location.search!==next){history.replaceState({},'',next);dispatchEvent(new PopStateEvent('popstate'))}},[tab,item.id]);
@@ -557,7 +641,10 @@ function Overview({item}:{item:CaseItem}){
  return <div className="overview-grid"><section className="card route-card"><div className="card-head"><div><span className="section-kicker">TRANSPORT</span><h2>운송정보</h2></div><Badge>{stages.length}개 구간</Badge></div><div className="route-line">{stages.map((s,i)=>{const label=s.name.match(/^([^（(]+)([（(].+)$/);return <div className={label?'border-stage':''} key={s.name}><span>{i===0?'K':i===stages.length-1?'◎':s.mode.includes('해상')?'⚓':'⇄'}</span><b>{label?<>{label[1]}<br/><span>{label[2]}</span></>:s.name}</b><small>{s.mode}</small>{i<stages.length-1&&<i/>}</div>})}</div></section><section className="card quote-detail"><span className="section-kicker">FORWARDER QUOTE</span><h2>포워더 견적</h2><strong>{money(item.price)}</strong><b>{item.forwarder}</b><dl><div><dt>견적 수신일</dt><dd>2026.08.10</dd></div><div><dt>유효기간</dt><dd>2026.08.17</dd></div><div><dt>결제 통화</dt><dd>USD</dd></div></dl></section><section className="card full status-log"><div className="card-head"><h2>주요 진행상태</h2><span>최근 업데이트 28분 전</span></div>{[['견적 등록 완료','2026.08.10 · 09:12'],['AI 검증 완료','2026.08.10 · 09:14'],['견적 확정 대기','담당자 확인 필요']].map((x,i)=><div key={x[0]}><span className={i===2?'warn':''}>{i<2?'✓':'!'}</span><b>{x[0]}</b><small>{x[1]}</small></div>)}</section></div>}
 
 function Validation({item,validation,setDrawer,onConfirm,onDefer}:{item:CaseItem;validation:ValidationResult;setDrawer:(x:DrawerState)=>void;onConfirm:()=>void;onDefer:()=>void}){
- const {query,matches,verdict,usdKrw,brent,cnyKrw,kztUsd,uzsUsd,kgsUsd,kci,seasonality,routePath}=validation;
+ const [liveSeries,setLiveSeries]=useState<Partial<Record<'usdKrw'|'cnyKrw'|'brent'|'kcci'|'kci',MarketPoint[]>>>({});
+ useEffect(()=>{fetch('/api/market').then(response=>response.ok?response.json():Promise.reject()).then((data:{series?:Partial<Record<'usdKrw'|'cnyKrw'|'brent'|'kcci'|'kci',MarketPoint[]>>})=>setLiveSeries(data.series??{})).catch(()=>{});},[]);
+ const {query,matches,usdKrw,brent,cnyKrw,kztUsd,uzsUsd,kgsUsd,kci,seasonality,routePath}=validation;
+ const verdict=Object.keys(liveSeries).length?verdictWithLiveMarket(item.price,matches,liveSeries):validation.verdict;
  const {origin,destination}=query;
  const prices=matches.map(m=>m.quote.price);
  const baseline=Math.round(verdict.baseline);
@@ -695,7 +782,7 @@ function Contract({clauses,setClauses,draft,loading,generate,onConfirm,item,rout
 // Invoice는 성격이 달라(이미 확정된 금액과의 정산 대조) 정산 탭에서 별도로 처리한다.
 const DATA_ENTRY_DOCUMENT_TYPES = DOCUMENT_TYPES.filter((t): t is Exclude<DocumentType,'Invoice'> => t!=='Invoice');
 
-function Documents({item,docs,onUpload,routePath,goToTab}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath;goToTab:(t:string)=>void}){
+function Documents({item,docs,onUpload,routePath,goToTab}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,file?:File|string)=>void;routePath:RoutePath;goToTab:(t:string)=>void}){
  const tabs:Exclude<DocumentType,'Invoice'|'화물운송장'>[]=['계약서','Packing List','B/L'];
  const [selected,setSelected]=useState<Exclude<DocumentType,'Invoice'|'화물운송장'>>('계약서');
  return <div className="documents-page"><div className="validation-title"><div><h2>문서 검토</h2><p>관련 문서를 업로드하시면 AI가 내용을 분석해 운송 데이터를 자동으로 입력하고 검토해 드립니다</p></div></div>
@@ -706,10 +793,11 @@ function Documents({item,docs,onUpload,routePath,goToTab}:{item:CaseItem;docs:Re
  </div>
 }
 
-function DocumentCard({type,item,state,onUpload,routePath,featured=false}:{type:Exclude<DocumentType,'Invoice'>;item:CaseItem;state:DocState;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath;featured?:boolean}){
+function DocumentCard({type,item,state,onUpload,routePath,featured=false}:{type:Exclude<DocumentType,'Invoice'>;item:CaseItem;state:DocState;onUpload:(type:DocumentType,file?:File|string)=>void;routePath:RoutePath;featured?:boolean}){
  const inputId=`upload-${type}`;
  const info=DOCUMENT_INFO[type];
- const extraction=state.status==='done'?buildDocumentExtraction(type,item,routePath):null;
+ const liveLabels:Record<string,string>={shipperName:'송하인',consignee:'수하인',cargoType:'품목',origin:'출발지',destination:'도착지',containerType:'컨테이너 타입',containerCount:'컨테이너 수량',totalWeightTon:'총중량',seaLegOrigin:'선적지',seaLegDestination:'도착항'};
+ const extraction:DocumentExtraction|null=state.status==='done'?(state.snapshot?{type,fields:Object.entries(state.snapshot).map(([key,value])=>({label:liveLabels[key]??key,baseline:'',extracted:value??'확인 필요',status:value?'unknown' as const:'mismatch' as const}))}:buildDocumentExtraction(type,item,routePath)):null;
  const mismatchCount=extraction?.fields.filter(f=>f.status==='mismatch').length??0;
  const checklistFailCount=extraction?.checklist?.filter(c=>!c.pass).length??0;
  const needsAttention=mismatchCount>0||checklistFailCount>0;
@@ -730,13 +818,22 @@ function DisputeChat({item,verdict,pressure,invoice}:{item:CaseItem;verdict:Verd
   {role:'bot',text:answerDispute(exampleQuestion,item,verdict,pressure,invoice)},
  ]);
  const [input,setInput]=useState('');
- const send=()=>{
-  if(!input.trim())return;
-  const answer=answerDispute(input,item,verdict,pressure,invoice);
-  saveDisputeMessage({caseId:item.id,role:'user',content:input}).catch(error=>console.error('채팅 저장 실패:',error));
-  saveDisputeMessage({caseId:item.id,role:'assistant',content:answer}).catch(error=>console.error('채팅 저장 실패:',error));
-  setMessages(m=>[...m,{role:'user',text:input},{role:'bot',text:answer}]);
+ const send=async()=>{
+  const question=input.trim();
+  if(!question)return;
+  setMessages(m=>[...m,{role:'user',text:question}]);
   setInput('');
+  try{
+   const response=await fetch('/api/dispute-chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question,history:messages.slice(-6),context:{caseId:item.id,shipper:item.shipper,route:item.route,cargo:item.item,container:item.container,quoteAmount:item.price,contractAmount:invoice.contractAmount,invoiceAmount:invoice.invoiceTotal,invoiceDifference:invoice.diff,validation:verdict}})});
+   const result=await response.json() as {answer?:string};
+   if(!response.ok||!result.answer)throw new Error();
+   saveDisputeMessage({caseId:item.id,role:'user',content:question}).catch(()=>{});
+   saveDisputeMessage({caseId:item.id,role:'assistant',content:result.answer}).catch(()=>{});
+   setMessages(m=>[...m,{role:'bot',text:result.answer!}]);
+  }catch{
+   const answer=answerDispute(question,item,verdict,pressure,invoice);
+   setMessages(m=>[...m,{role:'bot',text:answer}]);
+  }
  };
  return <section className="card dispute-chat">
   <div className="card-head"><div><span className="section-kicker">DISPUTE CHATBOT</span><h3>이의제기 챗봇</h3></div></div>
@@ -749,7 +846,12 @@ function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseIte
  const invoiceState=docs.Invoice;
  const [taxInvoiceGenerated,setTaxInvoiceGenerated]=useState(false);
  const scheduleLines=useMemo(()=>splitCostByStages(item.price,costBearingStages(validation.routePath.stages)),[item.price,validation.routePath]);
- const invoice=invoiceState.status==='done'?buildInvoiceComparison(item):null;
+ const invoice=invoiceState.status==='done' ? (() => {
+  if (!invoiceState.invoiceLineItems?.length) return buildInvoiceComparison(item);
+  const lineItems = invoiceState.invoiceLineItems.map(line => ({ ...line, category: '기타' as const }));
+  const invoiceTotal = lineItems.reduce((sum, line) => sum + line.amount, 0);
+  return { lineItems, invoiceTotal, contractAmount: item.price, diff: invoiceTotal - item.price, isMismatch: Math.abs(invoiceTotal - item.price) > 0.01 };
+ })() : null;
  const pressure=buildPressure(validation);
  return <div className="settlement-page">
   <div className="validation-title"><div><h2>정산 내역서</h2><p>코레일이 계약금액을 기준으로 먼저 작성한 정산 내역서입니다. 실제 Invoice가 도착하면 업로드해서 대조할 수 있습니다.</p></div>{invoice&&<div className="export"><button onClick={()=>notify('PDF 내보내기 데모가 실행되었습니다.')}><Icon name="download"/> PDF</button><button onClick={()=>notify('CSV 내보내기 데모가 실행되었습니다.')}><Icon name="download"/> CSV</button><button onClick={()=>notify('인쇄 화면을 준비했습니다.')}><Icon name="print"/> 인쇄</button></div>}</div>
@@ -852,6 +954,11 @@ function WeeklyBriefing({setDrawer}:{setDrawer:(s:DrawerState)=>void}){
 }
 
 function GlobalSearch({cases,notify}:{cases:CaseItem[];notify:(m:string)=>void}){
+ const [liveNews,setLiveNews]=useState<(NewsArticle&{url?:string})[]>([]);
+ useEffect(()=>{
+  fetch('/api/news?refresh=1').then(r=>r.ok?r.json():Promise.reject()).then((data:{articles?:Array<{id:string;category:NewsCategory;title:string;summary:string;source:string;publishedAt:string;url:string}>})=>setLiveNews((data.articles??[]).map(article=>({...article,date:article.publishedAt.slice(0,10)})))).catch(()=>{});
+ },[]);
+ const searchableNews=liveNews.length?liveNews:newsArticles;
  const [q,setQ]=useState('');
  const [filter,setFilter]=useState('전체');
  const [drawer,setDrawer]=useState<DrawerState|null>(null);
@@ -859,7 +966,7 @@ function GlobalSearch({cases,notify}:{cases:CaseItem[];notify:(m:string)=>void})
  const results=useMemo(()=>{
   const query=q.trim().toLowerCase();
   const tokens=query.split(/\s+/).filter(Boolean);
-  return newsArticles.filter(n=>{
+  return searchableNews.filter(n=>{
    const haystack=`${n.title} ${n.summary} ${n.category} ${n.source}`.toLowerCase();
    return (filter==='전체'||n.category===filter)&&(tokens.length===0||tokens.some(token=>haystack.includes(token)));
   }).sort((a,b)=>{
@@ -867,7 +974,7 @@ function GlobalSearch({cases,notify}:{cases:CaseItem[];notify:(m:string)=>void})
    const score=(n:NewsArticle)=>tokens.reduce((sum,token)=>sum+(`${n.title} ${n.summary} ${n.category}`.toLowerCase().includes(token)?1:0),0);
    return score(b)-score(a);
   }).slice(0,filter==='전체'?3:8);
- },[filter,q]);
+ },[filter,q,searchableNews]);
  const caseResults=useMemo(()=>{
   if(filter!=='전체'&&filter!=='과거견적')return [];
   const query=q.trim().toLowerCase();

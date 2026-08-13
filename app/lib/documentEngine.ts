@@ -48,7 +48,15 @@ export const DOCUMENT_INFO: Record<Exclude<DocumentType, "Invoice">, { icon: str
 };
 
 export type DocStatus = "idle" | "loading" | "done";
-export type DocState = { status: DocStatus; fileName?: string };
+export type DocState = {
+  status: DocStatus;
+  fileName?: string;
+  /** 실제 OCR/LLM API 결과. 없을 때만 기존 예시 결과를 표시한다. */
+  snapshot?: Record<string, string | null>;
+  mode?: "ocr" | "llm";
+  error?: string;
+  invoiceLineItems?: Array<{ label: string; amount: number; currency: 'USD'; isNew: boolean }>;
+};
 
 function parseContainerQty(container: string): number {
   const n = parseInt(container.split("×")[1] ?? "", 10);
