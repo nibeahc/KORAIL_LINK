@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "next build",
     "start": "vinext start",
     "lint": "eslint"
   },
