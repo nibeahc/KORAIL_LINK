@@ -324,7 +324,7 @@ function MarketIndexChart({monthly,todayPoints}:{monthly:{month:string;avgZ:numb
   <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="#dde3ea" strokeDasharray="3 3"/>
   <line x1={histW+10} x2={histW+10} y1={pad} y2={H-pad} stroke="#e5eaf1"/>
   {monthly.length>0&&<polygon points={areaPts} fill="#c7d9f5" opacity={0.5}/>}
- {monthly.length>0&&<polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={2}/>} 
+ {monthly.length>0&&<polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={2}/>}
  {monthly.map((m,i)=><circle key={m.month} cx={xOf(i)} cy={y(m.avgZ)} r={3} fill="#2c4870"/>)}
  {todayPoints.map((p,i)=><circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={4.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={1.5}/>)}
  {monthly.map((m,i)=><text key={m.month} x={xOf(i)} y={H+13} textAnchor="middle" className="index-x-label">{Number(m.month.slice(5))}월</text>)}
@@ -461,7 +461,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
   </div>
  </section>
  <button className="chatbot" onClick={()=>setChatOpen(true)}><img src="/icons/chatbot-train.svg" alt="" aria-hidden/><span>챗봇</span></button>
- {chatOpen&&<HomeChatbot item={cases[0]} cases={cases} close={()=>setChatOpen(false)}/>} 
+ {chatOpen&&<HomeChatbot item={cases[0]} cases={cases} close={()=>setChatOpen(false)}/>}
  {drawer&&<EvidenceDrawer state={drawer} close={()=>setDrawer(null)}/>}</div>
 }
 
