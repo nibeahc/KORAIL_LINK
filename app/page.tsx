@@ -548,7 +548,7 @@ const validation=useMemo(()=>buildValidation(item),[item]);const confirm=()=>{se
 const tabsLocked=item.status==='검증 대기'||item.status==='검토 필요';
 const lockedTabNames=quoteDeferred?['정산']:['계약','문서','정산'];
 const selectTab=(t:string)=>{if(tabsLocked&&lockedTabNames.includes(t)){notify('AI 견적 검증을 먼저 확인해주세요.');return}setTab(t)};
-return <div className="case-workspace figma-case-detail"><section className="case-hero"><div className="case-breadcrumb">화물 운송 <span>/</span> {item.id}</div><div className="case-heading"><div><div><Badge tone={statusClass(item.status)}>{item.status}</Badge><span className="case-id">{item.id}</span></div><h1>{item.route}</h1><p>{item.shipper} · {item.item} · {item.container}</p></div><div className="quote"><span>현재 포워더 견적</span><b>{money(item.price)}</b><small>{item.forwarder} · USD</small></div></div><Stepper status={item.status}/></section><div className="tabs">{tabGroups.map(([label,group],gi)=><div className="tab-group" key={label??'intro'}>{gi>0&&<i className="tab-divider"/>}{label&&<span className="tab-group-label">{label}</span>}{group.map(t=><button key={t} className={tab===t?'active':''} onClick={()=>selectTab(t)}>{t}</button>)}</div>)}</div><div className="workspace-body">{tab==='개요'&&<Overview item={item}/>} {tab==='견적 검증'&&<Validation item={item} validation={validation} setDrawer={setDrawer} onConfirm={()=>setModal(true)} onDefer={deferQuote}/>} {tab==='참고정보'&&<References setDrawer={setDrawer}/>} {tab==='계약'&&<Contract clauses={clauses} setClauses={setClauses} draft={draft} loading={loading} generate={()=>{setLoading(true);setTimeout(()=>{setClauses(buildContractClauses(item,validation.routePath));setLoading(false);setDraft(true)},1200)}} onConfirm={confirmContract} item={item} routePath={validation.routePath}/>} {tab==='문서'&&<Documents item={item} docs={docs} onUpload={uploadDoc} routePath={validation.routePath}/>} {tab==='정산'&&<Settlement item={item} docs={docs} onUpload={uploadDoc} notify={notify} validation={validation}/>}</div><QuotePageChatbot/>{drawer&&<EvidenceDrawer state={drawer} close={()=>setDrawer(null)}/>} {modal&&<ConfirmModal close={()=>setModal(false)} confirm={confirm}/>}</div>}
+return <div className="case-workspace figma-case-detail"><section className="case-hero"><div className="case-breadcrumb">화물 운송 <span>/</span> {item.id}</div><div className="case-heading"><div><div><Badge tone={statusClass(item.status)}>{item.status}</Badge><span className="case-id">{item.id}</span></div><h1>{item.route}</h1><p>{item.shipper} · {item.item} · {item.container}</p></div><div className="quote"><span>현재 포워더 견적</span><b>{money(item.price)}</b><small>{item.forwarder} · USD</small></div></div><Stepper status={item.status}/></section><div className="tabs">{tabGroups.map(([label,group],gi)=><div className="tab-group" key={label??'intro'}>{gi>0&&<i className="tab-divider"/>}{label&&<span className="tab-group-label">{label}</span>}{group.map(t=><button key={t} className={tab===t?'active':''} onClick={()=>selectTab(t)}>{t}</button>)}</div>)}</div><div className="workspace-body">{tab==='개요'&&<Overview item={item}/>} {tab==='견적 검증'&&<Validation item={item} validation={validation} setDrawer={setDrawer} onConfirm={()=>setModal(true)} onDefer={deferQuote}/>} {tab==='참고정보'&&<References setDrawer={setDrawer}/>} {tab==='계약'&&<Contract clauses={clauses} setClauses={setClauses} draft={draft} loading={loading} generate={()=>{setLoading(true);setTimeout(()=>{setClauses(buildContractClauses(item,validation.routePath));setLoading(false);setDraft(true)},1200)}} onConfirm={confirmContract} item={item} routePath={validation.routePath}/>} {tab==='문서'&&<Documents item={item} docs={docs} onUpload={uploadDoc} routePath={validation.routePath} goToTab={selectTab}/>} {tab==='정산'&&<Settlement item={item} docs={docs} onUpload={uploadDoc} notify={notify} validation={validation} goToTab={selectTab}/>}</div><QuotePageChatbot/>{drawer&&<EvidenceDrawer state={drawer} close={()=>setDrawer(null)}/>} {modal&&<ConfirmModal close={()=>setModal(false)} confirm={confirm}/>}</div>}
 function Stepper({status}:{status:CaseStatus}){const steps=['견적 등록','AI 검증','계약','문서','정산'];const idx=status==='검증 대기'||status==='검토 필요'?1:status==='견적 확정'||status==='계약'?2:status==='문서'?3:4;return <div className="stepper">{steps.map((s,i)=><div className={i<idx?'done':i===idx?'current':''} key={s}><span>{i<idx?'✓':i+1}</span><b>{s}</b>{i<steps.length-1&&<i/>}</div>)}</div>}
 function Overview({item}:{item:CaseItem}){
  const {origin,destination}=parseRoute(item.route);
@@ -687,20 +687,21 @@ function Contract({clauses,setClauses,draft,loading,generate,onConfirm,item,rout
   {signStatus==='signed'&&<div className="sign-done"><div><b>{item.shipper}</b><small>화주 · 서명 완료 · {signedAt}</small></div><div><b>{item.forwarder}</b><small>포워더 · 서명 완료 · {signedAt}</small></div></div>}
   <small className="hint">법적 효력이 있는 전자서명이 아니라 데모용 시뮬레이션입니다.</small>
  </section>}
- {draft&&<div className="form-actions"><span><Icon name="info"/> {signStatus==='signed'?'서명이 완료되었습니다. 계약을 확정하세요.':'전자서명을 완료해야 계약을 확정할 수 있습니다.'}</span><div><button className="primary" disabled={signStatus!=='signed'} onClick={onConfirm}><Icon name="check"/> 계약 확정</button></div></div>}
+ {draft&&<div className="form-actions"><span><Icon name="info"/> {signStatus==='signed'?'서명이 완료되었습니다. 다음 단계로 진행하세요.':'전자서명을 완료해야 다음 단계로 진행할 수 있습니다.'}</span><div><button className="primary" disabled={signStatus!=='signed'} onClick={onConfirm}>다음 →</button></div></div>}
  {addOpen&&<><div className="overlay clause-add-overlay" onClick={()=>setAddOpen(false)}/><section className="clause-add-modal" role="dialog" aria-modal="true" aria-labelledby="clause-add-title"><header><div><h2 id="clause-add-title">특약 조항 추가</h2></div><button type="button" aria-label="닫기" onClick={()=>setAddOpen(false)}>×</button></header><label><span>조항 제목</span><input autoFocus value={newClauseTitle} onChange={e=>setNewClauseTitle(e.target.value)} placeholder="예: 운송 일정 변경 및 통지"/></label><label><span>조항 내용</span><textarea value={newClauseBody} onChange={e=>setNewClauseBody(e.target.value)} placeholder="계약 당사자 간 합의할 특약 내용을 입력하세요." rows={5}/></label><footer><button type="button" className="primary" disabled={!newClauseTitle.trim()||!newClauseBody.trim()} onClick={saveNewClause}>조항 추가</button></footer></section></>}
  </div>}
 // 계약서·Packing List·화물운송장 3종만 다룬다 — 이 운송 건의 데이터를 채워나가는 "서류 처리" 문서.
 // Invoice는 성격이 달라(이미 확정된 금액과의 정산 대조) 정산 탭에서 별도로 처리한다.
 const DATA_ENTRY_DOCUMENT_TYPES = DOCUMENT_TYPES.filter((t): t is Exclude<DocumentType,'Invoice'> => t!=='Invoice');
 
-function Documents({item,docs,onUpload,routePath}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath}){
+function Documents({item,docs,onUpload,routePath,goToTab}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;routePath:RoutePath;goToTab:(t:string)=>void}){
  const tabs:Exclude<DocumentType,'Invoice'|'화물운송장'>[]=['계약서','Packing List','B/L'];
  const [selected,setSelected]=useState<Exclude<DocumentType,'Invoice'|'화물운송장'>>('계약서');
  return <div className="documents-page"><div className="validation-title"><div><h2>문서 검토</h2><p>관련 문서를 업로드하시면 AI가 내용을 분석해 운송 데이터를 자동으로 입력하고 검토해 드립니다</p></div></div>
   <DocumentCard featured type="화물운송장" item={item} state={docs['화물운송장']} onUpload={onUpload} routePath={routePath}/>
   <div className="document-tabs" role="tablist" aria-label="문서 종류">{tabs.map(type=><button type="button" role="tab" aria-selected={selected===type} className={selected===type?'active':''} onClick={()=>setSelected(type)} key={type}>{type}</button>)}</div>
   <DocumentCard type={selected} item={item} state={docs[selected]} onUpload={onUpload} routePath={routePath}/>
+  <div className="form-actions"><button className="secondary" onClick={()=>goToTab('계약')}>← 이전</button><button className="primary" onClick={()=>goToTab('정산')}>다음 →</button></div>
  </div>
 }
 
@@ -743,7 +744,7 @@ function DisputeChat({item,verdict,pressure,invoice}:{item:CaseItem;verdict:Verd
   <small className="hint">실시간 AI 응답이 아니라, 이미 계산된 판정 근거를 바탕으로 답하는 규칙 기반 챗봇입니다.</small>
  </section>}
 
-function Settlement({item,docs,onUpload,notify,validation}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;notify:(m:string)=>void;validation:ValidationResult}){
+function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;notify:(m:string)=>void;validation:ValidationResult;goToTab:(t:string)=>void}){
  const invoiceState=docs.Invoice;
  const [taxInvoiceGenerated,setTaxInvoiceGenerated]=useState(false);
  const scheduleLines=useMemo(()=>splitCostByStages(item.price,costBearingStages(validation.routePath.stages)),[item.price,validation.routePath]);
@@ -780,6 +781,7 @@ function Settlement({item,docs,onUpload,notify,validation}:{item:CaseItem;docs:R
    </section>
    <DisputeChat item={item} verdict={validation.verdict} pressure={pressure} invoice={invoice}/>
   </>}
+  <div className="form-actions"><button className="secondary" onClick={()=>goToTab('문서')}>← 이전</button></div>
  </div>;
 }
 
