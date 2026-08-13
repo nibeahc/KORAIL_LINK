@@ -12,7 +12,7 @@ import { CaseTabs } from '../../../../components/CaseTabs';
 import { Badge } from '../../../../components/Badge';
 import { Icon } from '../../../../components/Icon';
 
-const DOC_TYPES: DocumentType[] = ['contract', 'packing_list', 'waybill', 'bl'];
+const CHIP_DOC_TYPES: DocumentType[] = ['contract', 'packing_list', 'bl'];
 const VERDICT_TONE: Record<FieldVerdict, 'green' | 'red' | 'amber'> = { match: 'green', mismatch: 'red', confirm_needed: 'amber' };
 
 export default function CaseDocumentsPage() {
@@ -24,6 +24,7 @@ export default function CaseDocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showWaybillDraft, setShowWaybillDraft] = useState(false);
   const [aiWaybillDraft, setAiWaybillDraft] = useState<WaybillDraft | null>(null);
+  const [selectedChipType, setSelectedChipType] = useState<DocumentType>('contract');
 
   if (!item) {
     return (

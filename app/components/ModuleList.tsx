@@ -74,7 +74,7 @@ export function ModuleList({ type }: { type: '계약' | '문서' | '정산' }) {
                   <td>{c.route}</td>
                   <td>코레일</td>
                   <td>
-                    <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
+                    <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status].replace(' ', '')}</Badge>
                   </td>
                   <td>
                     <Link href={`/cases/${c.id}${meta.segment}`}>

@@ -16,12 +16,12 @@ export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
   settlement: '정산',
 };
 
-/** Badge 컴포넌트 tone(red/amber/green/blue 4종)에 매핑 */
-export const CASE_STATUS_TONE: Record<CaseStatus, 'red' | 'amber' | 'green' | 'blue'> = {
-  pending_validation: 'blue',
+/** Badge 컴포넌트 tone에 매핑 */
+export const CASE_STATUS_TONE: Record<CaseStatus, 'red' | 'amber' | 'green' | 'blue' | 'violet' | 'neutral'> = {
+  pending_validation: 'neutral',
   needs_review: 'amber',
-  quote_confirmed: 'green',
-  contracted: 'blue',
+  quote_confirmed: 'blue',
+  contracted: 'violet',
   settlement: 'green',
 };
 

@@ -95,7 +95,7 @@ export default function CaseListPage() {
                     <strong>${c.price.toLocaleString()}</strong>
                   </td>
                   <td>
-                    <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
+                    <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status].replace(' ', '')}</Badge>
                   </td>
                   <td>
                     <Icon name="arrow" />

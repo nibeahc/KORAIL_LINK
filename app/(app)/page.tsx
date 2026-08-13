@@ -8,7 +8,8 @@ import { buildCompositeIndex, historicalQuotes, SERIES, type IndicatorKey } from
 import { buildCausalAnalysis, type CausalAnalysis } from '../lib/causalAnalysis';
 import { thisWeekBriefingNews } from '../lib/newsData';
 import { getRoute } from '../lib/routeData';
-import { validateQuote, VERDICT_LABEL, VERDICT_TONE, TONE_COLOR } from '../lib/quoteEngine';
+import { validateQuote, VERDICT_TONE } from '../lib/quoteEngine';
+import { getCurrentUser, getProfile } from '../lib/supabase';
 import { DonutChart } from '../components/charts/DonutChart';
 import { IndexChart } from '../components/charts/IndexChart';
 import { MarketCard } from '../components/MarketCard';
@@ -17,7 +18,7 @@ import { PageTitle } from '../components/PageTitle';
 import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icon';
 
-const INDICATORS: IndicatorKey[] = ['usdKrw', 'cnyKrw', 'usdKzt', 'usdUzs', 'usdKgs', 'brent', 'kcci', 'kci'];
+const INDICATORS: IndicatorKey[] = ['usdKrw', 'cnyKrw', 'usdKzt', 'usdUzs', 'usdKgs', 'kcci', 'kci', 'brent'];
 const STATUS_ORDER: CaseStatus[] = ['pending_validation', 'needs_review', 'quote_confirmed', 'contracted', 'settlement'];
 
 type LiveNewsArticle = { id: string; title: string; summary: string; url: string; source: string; publishedAt: string; category: string };
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const [drawer, setDrawer] = useState<CausalAnalysis | null>(null);
   const [liveBriefing, setLiveBriefing] = useState<LiveNewsArticle[]>([]);
   const [liveRates, setLiveRates] = useState<LiveRates>({});
+  const [displayName, setDisplayName] = useState('사용자');
 
   const statusCounts = useMemo(() => {
     const counts: Record<CaseStatus, number> = {
@@ -79,9 +81,6 @@ export default function DashboardPage() {
     [cases]
   );
 
-  const attentionItems = verdicts.filter(({ item }) => item.status === 'needs_review');
-  const processed = cases.filter((c) => c.status === 'quote_confirmed' || c.status === 'contracted' || c.status === 'settlement').length;
-  const progressPct = cases.length ? Math.round((processed / cases.length) * 100) : 0;
   const contractPending = cases.filter((c) => c.status === 'contracted').length;
   const documentPending = contractPending;
   const settlementPending = cases.filter((c) => c.status === 'settlement').length;
@@ -99,6 +98,16 @@ export default function DashboardPage() {
     [verdicts]
   );
   const briefing = useMemo(() => thisWeekBriefingNews(6), []);
+
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      if (!user) return;
+      getProfile(user.id).then((profile) => {
+        const name = profile?.fullName ?? user.email?.split('@')[0];
+        if (name) setDisplayName(name);
+      });
+    });
+  }, []);
 
   useEffect(() => {
     fetch('/api/news')
@@ -124,7 +133,7 @@ export default function DashboardPage() {
   return (
     <div className="page dashboard">
       <div className="figma-hero">
-        <PageTitle title="좋은 아침입니다" desc="오늘 확인이 필요한 견적과 국제물류 변동 사항을 정리했어요." />
+        <PageTitle title={`좋은 아침입니다, ${displayName}님`} desc="오늘 확인이 필요한 견적과 국제물류 변동 사항을 정리했어요." />
         <Link href="/quotes/new" className="primary compact">
           <Icon name="spark" /> AI 견적 생성
         </Link>
@@ -133,15 +142,15 @@ export default function DashboardPage() {
       <div className="quick-actions">
         <Link href="/contracts" className="quick-card">
           <b>계약 {contractPending}건 대기</b>
-          <span>전자서명 확인 필요</span>
+          <span>AI가 구간별 원가로 추천</span>
         </Link>
         <Link href="/documents" className="quick-card">
           <b>문서 {documentPending}건 대기</b>
-          <span>AI 추출 결과 확인 필요</span>
+          <span>AI 서류 자동 파싱 및 이상 검증</span>
         </Link>
         <Link href="/settlements" className="quick-card">
           <b>정산 {settlementPending}건 대기</b>
-          <span>Invoice 대조 필요</span>
+          <span>AI 청구 내역 대조 및 오차 검증</span>
         </Link>
       </div>
 
@@ -155,9 +164,6 @@ export default function DashboardPage() {
       <h2 className="dashboard-label">운송 현황</h2>
       <div className="kpi-row">
         <div className="stat-mini">
-          <span className="stat-mini-icon">
-            <Icon name="waybill" />
-          </span>
           <div>
             <b>
               {kpis.tcrCount}
@@ -167,9 +173,6 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="stat-mini">
-          <span className="stat-mini-icon">
-            <Icon name="arrow" />
-          </span>
           <div>
             <b>
               {kpis.directChinaCount}
@@ -179,9 +182,6 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="stat-mini">
-          <span className="stat-mini-icon">
-            <Icon name="time" />
-          </span>
           <div>
             <b>
               {kpis.avgLeadTime}
@@ -194,7 +194,6 @@ export default function DashboardPage() {
 
       <h2 className="dashboard-label spaced">KORAIL LINK 종합 지수</h2>
       <section className="card chart-card index-card">
-        <IndexChart monthly={compositeIndex} todayPoints={todayPoints} />
         <div className="legend index-legend">
           <span>
             <i className="legend-band" />
@@ -213,6 +212,7 @@ export default function DashboardPage() {
             높음
           </span>
         </div>
+        <IndexChart monthly={compositeIndex} todayPoints={todayPoints} />
       </section>
 
       <section className="card active-work">
@@ -266,7 +266,7 @@ export default function DashboardPage() {
                       <b>${c.price.toLocaleString()}</b>
                     </td>
                     <td>
-                      <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status]}</Badge>
+                      <Badge tone={CASE_STATUS_TONE[c.status]}>{CASE_STATUS_LABEL[c.status].replace(' ', '')}</Badge>
                     </td>
                     <td>{new Date(c.createdAt).toLocaleDateString('ko-KR')}</td>
                   </tr>
@@ -277,85 +277,44 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <div className="home-grid">
-        <section className="card briefing figma-briefing">
-          <div className="card-head">
-            <div>
-              <span className="section-kicker">
-                <Icon name="spark" /> LIVE BRIEFING
-              </span>
-              <h2>오늘의 국제물류 브리핑</h2>
-            </div>
-            <Link href="/search" className="text-btn">
-              전체 정보 보기 <Icon name="arrow" />
-            </Link>
+      <section className="card briefing figma-briefing">
+        <div className="card-head">
+          <div>
+            <span className="section-kicker">
+              <Icon name="spark" /> LIVE BRIEFING
+            </span>
+            <h2>오늘의 국제물류 브리핑</h2>
           </div>
-          <div className="brief-list">
-            {displayBriefing.map((n) => (
-              <button
-                key={n.id}
-                className="brief"
-                onClick={() => {
-                  if ('indicator' in n && n.indicator) {
-                    setDrawer(buildCausalAnalysis(n.indicator as IndicatorKey, SERIES[n.indicator as IndicatorKey]));
-                  } else if ('url' in n && n.url) {
-                    window.open(n.url, '_blank', 'noopener,noreferrer');
-                  }
-                }}
-              >
-                <span className="brief-icon blue">◒</span>
-                <div>
-                  <Badge tone="blue">{n.category}</Badge>
-                  <b>{n.title}</b>
-                  <small>
-                    {'source' in n ? n.source : ''} · {new Date(n.publishedAt).toLocaleDateString('ko-KR')}
-                  </small>
-                </div>
-                <Icon name="arrow" />
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <aside className="card focus">
-          <div className="card-head">
-            <div>
-              <span className="section-kicker">TODAY</span>
-              <h2>오늘의 업무</h2>
-            </div>
-            <span className="count">{cases.length}</span>
-          </div>
-          {attentionItems.length > 0 ? (
-            <div className="focus-list">
-              {attentionItems.map(({ item, verdict }) => (
-                <Link key={item.id} href={`/cases/${item.id}/validation`} className="focus-item">
-                  <i className="focus-dot" style={{ background: TONE_COLOR[VERDICT_TONE[verdict.verdict]] }} />
-                  <div>
-                    <b>
-                      {item.caseNumber} · {item.route}
-                    </b>
-                    <small>{VERDICT_LABEL[verdict.verdict]}</small>
-                  </div>
-                  <Icon name="arrow" />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="focus-empty">
-              <Icon name="check" /> 오늘 추가로 확인할 항목이 없습니다.
-            </div>
-          )}
-          <div className="progressbar">
-            <i style={{ width: `${progressPct}%` }} />
-          </div>
-          <small>
-            오늘 업무 {cases.length}건 중 {processed}건 처리
-          </small>
-          <Link href="/cases">
-            업무 목록 확인 <Icon name="arrow" />
+          <Link href="/search" className="text-btn">
+            전체 정보 보기 <Icon name="arrow" />
           </Link>
-        </aside>
-      </div>
+        </div>
+        <div className="brief-list">
+          {displayBriefing.map((n) => (
+            <button
+              key={n.id}
+              className="brief"
+              onClick={() => {
+                if ('indicator' in n && n.indicator) {
+                  setDrawer(buildCausalAnalysis(n.indicator as IndicatorKey, SERIES[n.indicator as IndicatorKey]));
+                } else if ('url' in n && n.url) {
+                  window.open(n.url, '_blank', 'noopener,noreferrer');
+                }
+              }}
+            >
+              <span className="brief-icon blue">◒</span>
+              <div>
+                <Badge tone="blue">{n.category}</Badge>
+                <b>{n.title}</b>
+                <small>
+                  {'source' in n ? n.source : ''} · {new Date(n.publishedAt).toLocaleDateString('ko-KR')}
+                </small>
+              </div>
+              <Icon name="arrow" />
+            </button>
+          ))}
+        </div>
+      </section>
 
       <EvidenceDrawer analysis={drawer} onClose={() => setDrawer(null)} />
     </div>

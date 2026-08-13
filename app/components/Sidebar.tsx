@@ -7,10 +7,10 @@ import { getCurrentUser, getProfile, type Profile } from '../lib/supabase';
 import { useCases } from '../lib/state';
 import { Icon } from './Icon';
 
-const CASE_SUB_ITEMS: [string, string][] = [
-  ['/contract', '계약'],
-  ['/documents', '문서'],
-  ['/settlement', '정산'],
+const CASE_SUB_ITEMS: [string, string, string][] = [
+  ['/contract', '/contracts', '계약'],
+  ['/documents', '/documents', '문서'],
+  ['/settlement', '/settlements', '정산'],
 ];
 
 const NAV_ICON_SRC: Record<string, string> = { home: '/icons/nav-home.svg', search: '/icons/nav-search.svg', case: '/icons/nav-shipment.svg' };
@@ -36,8 +36,9 @@ export function Sidebar() {
 
   const caseMatch = pathname.match(/^\/cases\/([^/]+)/);
   const activeCaseId = caseMatch?.[1] ?? null;
-  const shipmentActive = pathname.startsWith('/cases');
-  const open = manualOpen === null ? shipmentActive : manualOpen;
+  const moduleTopLevel = pathname === '/contracts' || pathname === '/documents' || pathname === '/settlements';
+  const shipmentActive = pathname.startsWith('/cases') || moduleTopLevel;
+  const open = manualOpen === null ? true : manualOpen;
   const needsAttention = cases.filter((c) => c.status === 'needs_review' || c.status === 'pending_validation').length;
   const contractCount = cases.filter((c) => c.status === 'contracted').length;
   const documentCount = contractCount;
@@ -81,13 +82,14 @@ export function Sidebar() {
               {open ? '▴' : '▾'}
             </button>
           </div>
-          {open && activeCaseId && (
+          {open && (
             <div className="sidebar-sub">
-              {CASE_SUB_ITEMS.map(([segment, label]) => {
-                const href = `/cases/${activeCaseId}${segment}`;
+              {CASE_SUB_ITEMS.map(([caseSegment, topLevelPath, label]) => {
+                const href = activeCaseId ? `/cases/${activeCaseId}${caseSegment}` : topLevelPath;
                 const count = subCounts[label] ?? 0;
+                const active = pathname === href || (!activeCaseId && pathname === topLevelPath);
                 return (
-                  <Link key={segment} href={href} className={pathname === href ? 'active' : ''}>
+                  <Link key={label} href={href} className={active ? 'active' : ''}>
                     {label}
                     {count > 0 && <em>{count}</em>}
                   </Link>
