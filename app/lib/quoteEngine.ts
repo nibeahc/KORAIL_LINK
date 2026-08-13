@@ -1,197 +1,189 @@
-// 견적 적정성 판정 — 동적 분산(σ) 기반, 대칭 판정 (기능_상세_스펙.md A-1)
-// 유사 견적 매칭 — 가중치 기반 유사도 (A-3)
+// 견적 검증 계산 엔진 — 아이디어 문서 3장 "구체화: 판정 기준"(A/B/C)을 그대로 구현한다.
+// 목업 데이터(marketData.ts) 위에서 동작하는 순수 함수들로, UI(page.tsx)가 이 값을 소비한다.
 
-import type { HistoricalQuote } from './marketData';
+import type { HistoricalQuote, MarketPoint } from "./marketData";
 
-export const SIMILARITY_WEIGHTS = {
-  route: 0.4,
-  containerType: 0.25,
-  timing: 0.2,
-  cargoType: 0.15,
-};
+export function calcStats(values: number[]) {
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+  return { mean, std: Math.sqrt(variance) };
+}
 
-export const SIMILARITY_THRESHOLD = 0.7;
-export const TIMING_WINDOW_MONTHS = 6;
-export const MIN_SAMPLE_SIZE = 4;
-export const DEFAULT_SIGMA_PCT = 5;
-export const MIN_SIGMA_PCT = 1.5;
+export type MarketIndexPoint = { month: string; avgZ: number };
 
-export interface QuoteTarget {
-  route: string;
-  containerType: string;
-  cargoType: string;
-  shipmentDate: string; // YYYY-MM-DD
+// 대시보드 "KORAIL LINK 종합 지수" 차트용 — 노선(오봉→알마티/타슈켄트/아스타나 등)마다
+// 가격 스케일이 달라 과거 견적 금액을 그대로 평균 내면 의미가 없다(코레일 공식 자료 기준
+// 노선별 편도 6,044~7,123km로 완만하게 갈리는 trunk-and-branch 구조 — 몸통 구간은 공유하고
+// 목적지 라스트마일만 증분되는 형태). 그래서 노선·컨테이너 타입 버킷 안에서 표준화(z-score)한
+// 뒤 월별로 평균 내 "자체 종합 지수"를 만든다. 외부 지수(SCFI/CCFI/KCCI 등)를 그대로 쓰지
+// 않는 이유는, TCR 구간을 대표하는 공식 지수가 아직 없기 때문이다(해상 구간만 다루는 KCCI의
+// KCI 서브지수로는 노선 전체를 대표할 수 없음) — 그래서 자체 산출 지수로 명확히 라벨링한다.
+export function buildMarketIndexSeries(pool: HistoricalQuote[]): MarketIndexPoint[] {
+  const buckets = new Map<string, HistoricalQuote[]>();
+  for (const q of pool) {
+    const key = `${q.origin}|${q.destination}|${q.containerType}`;
+    const list = buckets.get(key) ?? [];
+    list.push(q);
+    buckets.set(key, list);
+  }
+  const zByMonth = new Map<string, number[]>();
+  for (const list of buckets.values()) {
+    const { mean, std } = calcStats(list.map((q) => q.price));
+    for (const q of list) {
+      const z = std === 0 ? 0 : (q.price - mean) / std;
+      const arr = zByMonth.get(q.transportMonth) ?? [];
+      arr.push(z);
+      zByMonth.set(q.transportMonth, arr);
+    }
+  }
+  return Array.from(zByMonth.entries())
+    .map(([month, zs]) => ({ month, avgZ: zs.reduce((a, b) => a + b, 0) / zs.length }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
+export function median(nums: number[]): number {
+  if (!nums.length) return 0;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 function monthsBetween(a: string, b: string): number {
-  const da = new Date(a);
-  const db = new Date(b);
-  return Math.abs((da.getFullYear() - db.getFullYear()) * 12 + (da.getMonth() - db.getMonth()));
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  return Math.abs((ay - by) * 12 + (am - bm));
 }
 
-function containerTypeSimilarity(a: string, b: string): number {
-  if (a === b) return 1;
-  const sizeA = a.match(/\d+/)?.[0];
-  const sizeB = b.match(/\d+/)?.[0];
-  if (sizeA && sizeA === sizeB) return 0.6; // 같은 규격(FT), HC 등 옵션만 다름
-  return 0;
+// ── C. 유사 견적 매칭 기준 — 가중치 기반 유사도 ──────────────────────────────
+export const SIMILARITY_WEIGHTS = { route: 0.4, container: 0.25, timing: 0.2, cargo: 0.15 } as const;
+export const SIMILARITY_MIN_SCORE = 0.7;
+export const SIMILARITY_WINDOW_MONTHS = 6;
+
+export type QuoteQuery = {
+  origin: string;
+  destination: string;
+  containerType: string;
+  cargoCategory: string;
+  transportMonth: string;
+};
+
+export type SimilarityBreakdown = { routeMatch: boolean; containerMatch: boolean; cargoMatch: boolean; timingScore: number };
+
+export function similarityBreakdown(target: QuoteQuery, candidate: HistoricalQuote): SimilarityBreakdown {
+  const routeMatch = target.origin === candidate.origin && target.destination === candidate.destination;
+  const containerMatch = target.containerType === candidate.containerType;
+  const cargoMatch = target.cargoCategory === candidate.cargoCategory;
+  const monthsDiff = monthsBetween(target.transportMonth, candidate.transportMonth);
+  const timingScore = Math.max(0, 1 - monthsDiff / SIMILARITY_WINDOW_MONTHS);
+  return { routeMatch, containerMatch, cargoMatch, timingScore };
 }
 
-export interface SimilarityBreakdown {
-  routeMatch: boolean;
-  containerScore: number;
-  timingScore: number;
-  cargoMatch: boolean;
-  total: number;
+export function similarityScore(target: QuoteQuery, candidate: HistoricalQuote): number {
+  const b = similarityBreakdown(target, candidate);
+  return (
+    (b.routeMatch ? SIMILARITY_WEIGHTS.route : 0) +
+    (b.containerMatch ? SIMILARITY_WEIGHTS.container : 0) +
+    b.timingScore * SIMILARITY_WEIGHTS.timing +
+    (b.cargoMatch ? SIMILARITY_WEIGHTS.cargo : 0)
+  );
 }
 
-export function computeSimilarityBreakdown(target: QuoteTarget, candidate: HistoricalQuote): SimilarityBreakdown {
-  const routeMatch = target.route === candidate.route;
-  const containerScore = containerTypeSimilarity(target.containerType, candidate.containerType);
-  const monthsDiff = monthsBetween(target.shipmentDate, candidate.contractDate);
-  const timingScore = monthsDiff > TIMING_WINDOW_MONTHS ? 0 : 1 - monthsDiff / TIMING_WINDOW_MONTHS;
-  const cargoMatch = target.cargoType === candidate.cargoType;
+export type SimilarMatch = { quote: HistoricalQuote; score: number; breakdown: SimilarityBreakdown };
 
-  const total =
-    (routeMatch ? 1 : 0) * SIMILARITY_WEIGHTS.route +
-    containerScore * SIMILARITY_WEIGHTS.containerType +
-    timingScore * SIMILARITY_WEIGHTS.timing +
-    (cargoMatch ? 1 : 0) * SIMILARITY_WEIGHTS.cargoType;
-
-  return { routeMatch, containerScore, timingScore, cargoMatch, total };
-}
-
-export function computeSimilarity(target: QuoteTarget, candidate: HistoricalQuote): number {
-  return computeSimilarityBreakdown(target, candidate).total;
-}
-
-export interface SimilarQuoteMatch {
-  quote: HistoricalQuote;
-  similarity: number;
-}
-
-/** 유사도 70% 이상 & 최근 6개월 이내 사례만 채택 (A-3) */
-export function findSimilarQuotes(target: QuoteTarget, pool: HistoricalQuote[]): SimilarQuoteMatch[] {
+export function matchSimilarQuotes(target: QuoteQuery, pool: HistoricalQuote[]): SimilarMatch[] {
   return pool
-    .map((quote) => ({ quote, similarity: computeSimilarity(target, quote) }))
-    .filter((m) => m.similarity >= SIMILARITY_THRESHOLD)
-    .sort((a, b) => b.similarity - a.similarity);
+    .map((quote) => ({ quote, score: similarityScore(target, quote), breakdown: similarityBreakdown(target, quote) }))
+    .filter((m) => m.score >= SIMILARITY_MIN_SCORE && monthsBetween(target.transportMonth, m.quote.transportMonth) <= SIMILARITY_WINDOW_MONTHS)
+    .sort((a, b) => b.score - a.score);
 }
 
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+// ── A. 견적 적정성 판정 — 동적 변동성(σ) 기반 ────────────────────────────────
+const SIGMA_FALLBACK = 5;
+const SIGMA_FLOOR = 1.5;
+const SIGMA_MIN_SAMPLES = 4;
+
+// diffPct("현재 견적이 중앙값 대비 몇 % 떨어져 있는가")와 같은 성격의 통계량으로 맞추기 위해,
+// 유사 견적들을 시간 순으로 이어붙인 "변동률"의 표준편차가 아니라, 유사 견적들의 가격 "수준"이
+// 중앙값(baseline) 대비 얼마나 흩어져 있는지(수준편차, %)의 표준편차를 σ로 쓴다. 이렇게 해야
+// diffPct(수준편차)를 σ의 배수로 나누는 게 통계적으로 말이 된다(2026-08-12, 팀 피드백 반영 —
+// 기존 버전은 "가격 변동률의 변동성"과 "가격 수준의 편차"라는 서로 다른 통계량을 비교하고 있었다).
+export function sigmaFromMatches(matches: SimilarMatch[], baseline: number): number {
+  if (matches.length < SIGMA_MIN_SAMPLES || baseline === 0) return SIGMA_FALLBACK;
+  const pctDeviations = matches.map((m) => ((m.quote.price - baseline) / baseline) * 100);
+  const { std } = calcStats(pctDeviations);
+  return Math.max(std, SIGMA_FLOOR);
 }
 
-export type QuoteVerdict = 'appropriate' | 'slightly_high' | 'high' | 'slightly_low' | 'low' | 'insufficient_data';
-export type Tone = 'red' | 'amber' | 'green';
+export type VerdictTone = "green" | "amber" | "red";
+export type Verdict = { label: string; tone: VerdictTone; diffPct: number; sigma: number; baseline: number };
 
-/** Badge tone(red/amber/green) — 대시보드·검증 패널 등 여러 화면이 이 하나의 맵만 참조한다 */
-export const VERDICT_TONE: Record<QuoteVerdict, Tone> = {
-  appropriate: 'green',
-  slightly_high: 'amber',
-  high: 'red',
-  slightly_low: 'amber',
-  low: 'red',
-  insufficient_data: 'amber',
-};
-
-/** tone → 실제 색상(hex) — DonutChart 점/risk-line 등 CSS 클래스가 아닌 인라인 색상이 필요한 곳에서 쓴다 */
-export const TONE_COLOR: Record<Tone, string> = {
-  green: '#1f8a5b',
-  amber: '#d78516',
-  red: '#d93d42',
-};
-
-export const VERDICT_LABEL: Record<QuoteVerdict, string> = {
-  appropriate: '적정 수준',
-  slightly_high: '다소 높음',
-  high: '높음',
-  slightly_low: '다소 낮음 — 비용 확인 필요',
-  low: '낮음 — 비용 누락 가능성',
-  insufficient_data: '비교할 과거 데이터 부족',
-};
-
-export interface QuoteValidationResult {
-  baseline: number;
-  sigma: number;
-  diffPct: number;
-  verdict: QuoteVerdict;
-  sampleSize: number;
-  usedDefaultSigma: boolean;
-  narrative: string;
-  matches: SimilarQuoteMatch[];
-}
-
-/**
- * σ 기반 견적 적정성 판정 (A-1). diffPct가 음수라고 무조건 "유리한 견적"으로 판정하지 않는다 —
- * |diffPct| 기준 대칭 판정이라 지나치게 낮은 견적도 "확인 필요"로 잡힌다.
- */
-export function validateQuote(currentTotal: number, target: QuoteTarget, pool: HistoricalQuote[]): QuoteValidationResult {
-  let matches = findSimilarQuotes(target, pool);
-
-  // 유사도 기준 표본이 아예 없으면(신규 노선 등) 같은 노선의 과거 데이터로 최후 폴백한다.
-  if (matches.length === 0) {
-    const sameRoute = pool.filter((q) => q.route === target.route);
-    if (sameRoute.length === 0) {
-      return {
-        baseline: 0,
-        sigma: 0,
-        diffPct: 0,
-        verdict: 'insufficient_data',
-        sampleSize: 0,
-        usedDefaultSigma: true,
-        narrative: '이 노선의 과거 비교 데이터가 없어 적정성을 판정할 수 없습니다. 담당자 확인이 필요합니다.',
-        matches: [],
-      };
-    }
-    matches = sameRoute.map((quote) => ({ quote, similarity: computeSimilarity(target, quote) }));
-  }
-
-  const amounts = matches.map((m) => m.quote.amount);
-  const baseline = median(amounts);
-  const useDefault = matches.length < MIN_SAMPLE_SIZE || baseline === 0;
-
-  let sigma: number;
-  if (useDefault) {
-    sigma = DEFAULT_SIGMA_PCT;
-  } else {
-    const deviations = amounts.map((a) => ((a - baseline) / baseline) * 100);
-    const mean = deviations.reduce((s, v) => s + v, 0) / deviations.length;
-    const variance = deviations.reduce((s, v) => s + (v - mean) ** 2, 0) / deviations.length;
-    sigma = Math.max(Math.sqrt(variance), MIN_SIGMA_PCT);
-  }
-
-  const diffPct = baseline === 0 ? 0 : ((currentTotal - baseline) / baseline) * 100;
+// 절대값(|diffPct|) 기준으로 등급을 매겨서, 시장가 대비 지나치게 낮은 견적도 이상치로 잡는다
+// (2026-08-12, 팀 피드백 반영 — 기존 버전은 diffPct<=0이면 무조건 "유리한 견적"으로 판정해서,
+// 원가 항목 누락 가능성이 있는 지나치게 낮은 견적을 놓쳤다).
+export function verdictFromQuote(price: number, matches: SimilarMatch[]): Verdict {
+  const baseline = median(matches.map((m) => m.quote.price));
+  const diffPct = baseline === 0 ? 0 : ((price - baseline) / baseline) * 100;
+  const sigma = sigmaFromMatches(matches, baseline);
   const absDiff = Math.abs(diffPct);
-  const halfSigma = 0.5 * sigma;
-  const oneHalfSigma = 1.5 * sigma;
-
-  let verdict: QuoteVerdict;
-  if (absDiff <= halfSigma) verdict = 'appropriate';
-  else if (absDiff <= oneHalfSigma) verdict = diffPct > 0 ? 'slightly_high' : 'slightly_low';
-  else verdict = diffPct > 0 ? 'high' : 'low';
-
-  const narrative = buildNarrative(verdict);
-
-  return { baseline, sigma, diffPct, verdict, sampleSize: matches.length, usedDefaultSigma: useDefault, narrative, matches };
+  let label: string;
+  let tone: VerdictTone;
+  if (absDiff <= 0.5 * sigma) {
+    label = "적정 수준";
+    tone = "green";
+  } else if (absDiff <= 1.5 * sigma) {
+    label = diffPct > 0 ? "다소 높음 — 과거 대비 다소 높은 수준" : "다소 낮음 — 비용 항목 확인 필요";
+    tone = "amber";
+  } else {
+    label = diffPct > 0 ? "높음 — 과거 대비 높은 수준" : "낮음 — 비용 항목 누락 가능성, 확인 필요";
+    tone = "red";
+  }
+  return { label, tone, diffPct, sigma, baseline };
 }
 
-function buildNarrative(verdict: QuoteVerdict): string {
-  switch (verdict) {
-    case 'appropriate':
-      return '과거 유사 견적 대비 적정한 수준입니다.';
-    case 'slightly_high':
-      return '과거에 비해 다소 높은 견적입니다.';
-    case 'high':
-      return '과거에 비해 높은 견적입니다.';
-    case 'slightly_low':
-      return '과거에 비해 다소 낮은 견적입니다 — 비용 항목을 확인해 주세요.';
-    case 'low':
-      return '과거에 비해 낮은 견적입니다 — 비용 항목 누락 가능성이 있어 확인이 필요합니다.';
-    case 'insufficient_data':
-      return '비교할 과거 데이터가 부족합니다.';
-  }
+// ── B. 시황 지표 이상탐지 — z-score + 급변 조건 ──────────────────────────────
+const Z_SCORE_THRESHOLD = 2.0;
+const CHANGE_PCT_THRESHOLD = 8;
+
+export type AnomalyResult = {
+  z: number;
+  changePct: number;
+  isAnomaly: boolean;
+  direction: "up" | "down";
+  latestValue: number;
+};
+
+export function detectAnomaly(series: MarketPoint[]): AnomalyResult | null {
+  if (series.length < 10) return null;
+  const latest = series[series.length - 1];
+  const prev = series[series.length - 2];
+  const history = series.slice(0, -1).map((p) => p.value);
+  const { mean, std } = calcStats(history);
+  const z = std === 0 ? 0 : (latest.value - mean) / std;
+  const changePct = prev.value === 0 ? 0 : ((latest.value - prev.value) / prev.value) * 100;
+  const isAnomaly = Math.abs(z) >= Z_SCORE_THRESHOLD || Math.abs(changePct) >= CHANGE_PCT_THRESHOLD;
+  return { z, changePct, isAnomaly, direction: z >= 0 ? "up" : "down", latestValue: latest.value };
+}
+
+/** 시계열의 첫 값 대비 최신값 변화율 — Factor 카드의 "최근 30일" 표기용 */
+export function windowChangePct(series: MarketPoint[]): number {
+  if (series.length < 2) return 0;
+  const first = series[0].value;
+  const latest = series[series.length - 1].value;
+  return first === 0 ? 0 : ((latest - first) / first) * 100;
+}
+
+// ── 보조: CaseItem의 문자열 필드(route/container)를 매칭용 구조로 분해 ──────────
+export function parseRoute(route: string): { origin: string; destination: string } {
+  const [origin, destination] = route.split("→").map((s) => s.trim());
+  return { origin: origin ?? "", destination: destination ?? "" };
+}
+
+export function parseContainerType(container: string): string {
+  // "40FT × 3" → "40FT"
+  return container.split("×")[0]?.trim() ?? container;
+}
+
+/** "2026.08.10" 또는 "2026-08-24" 형식을 "YYYY-MM"으로 정규화 */
+export function toTransportMonth(dateLike: string): string {
+  return dateLike.replaceAll(".", "-").slice(0, 7);
 }

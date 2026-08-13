@@ -1,18 +1,16 @@
 import type { Metadata } from "next";
-import { CasesProvider } from "./lib/state";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KORAIL LINK",
-  description: "코레일 국제복합운송 운임 인텔리전스 · Single Data Entry 플랫폼",
+  title: "KORAIL LINK | 국제복합운송 견적 검증",
+  description: "코레일 국제물류 담당자를 위한 AI 기반 국제복합운송 견적 검증·업무지원 플랫폼",
+  icons: { icon: "/favicon.svg" },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>
-        <CasesProvider>{children}</CasesProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

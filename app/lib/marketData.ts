@@ -1,243 +1,186 @@
-// 시황 지표(목업, 결정론적) — 기능_상세_스펙.md A-2, A-8
-// 값은 seed 고정 의사난수로 생성한다: 매 렌더링마다 결과가 바뀌면 데모 중 판정이 들쭉날쭉해진다
-// (마스터 컨텍스트 비타협 원칙 8 — 결정론적 시뮬레이션 우선).
+// 2단계(견적 검증 고도화)용 목업 데이터.
+// 실 서비스 전환 시 historicalQuotes는 코레일 내부 계약 이력으로,
+// marketSeries는 환율·유가·운임지수 API 연동으로 교체한다.
+// (아이디어 문서 3장 "구체화: 판정 기준" 참고)
 
-export interface MarketPoint {
-  date: string; // YYYY-MM-DD
-  value: number;
-}
-
-export type IndicatorKey =
-  | 'usdKrw'
-  | 'cnyKrw'
-  | 'brent'
-  | 'usdKzt'
-  | 'usdUzs'
-  | 'usdKgs'
-  | 'kcci'
-  | 'kci';
-
-export const INDICATOR_LABEL: Record<IndicatorKey, string> = {
-  usdKrw: 'USD/KRW',
-  cnyKrw: 'CNY/KRW',
-  brent: 'Brent 유가',
-  usdKzt: 'USD/KZT',
-  usdUzs: 'USD/UZS',
-  usdKgs: 'USD/KGS',
-  kcci: 'KCCI(종합)',
-  kci: 'KCI(한중항로)',
+export type HistoricalQuote = {
+  id: string;
+  origin: string;
+  destination: string;
+  containerType: string;
+  cargoCategory: string;
+  /** YYYY-MM, 운송(선적) 예정월 */
+  transportMonth: string;
+  price: number;
+  /** YYYY-MM-DD, 계약 체결일 — 6개월 이내 필터링 기준 */
+  contractDate: string;
 };
 
-/** KZT/UZS/KGS는 "1 USD = 몇 현지통화" 방향이다 — 값이 오르면 그 통화가 달러 대비 약세라는 뜻(A-8) */
-export const IS_INVERTED_VS_KRW: Record<IndicatorKey, boolean> = {
-  usdKrw: false,
-  cnyKrw: false,
-  brent: false,
-  usdKzt: true,
-  usdUzs: true,
-  usdKgs: true,
-  kcci: false,
-  kci: false,
-};
+// 오봉 → 알마티 · 40FT 노선의 과거 유사 견적(핵심 매칭 대상).
+// 화물 특성을 섞어 "화물 특성 유사도" 가중치가 실제로 매칭 점수를 갈라놓는지 보여준다.
+const almatyRoute40FT: HistoricalQuote[] = [
+  { id: "H-241", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-03", price: 3120, contractDate: "2026-03-02" },
+  { id: "H-242", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-04", price: 3250, contractDate: "2026-04-10" },
+  { id: "H-243", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "전자부품", transportMonth: "2026-04", price: 3180, contractDate: "2026-04-22" },
+  { id: "H-244", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-05", price: 3310, contractDate: "2026-05-15" },
+  { id: "H-245", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "산업 소재", transportMonth: "2026-05", price: 3220, contractDate: "2026-05-28" },
+  { id: "H-246", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-06", price: 3160, contractDate: "2026-06-04" },
+  { id: "H-247", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-06", price: 3280, contractDate: "2026-06-19" },
+  { id: "H-248", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "소비재", transportMonth: "2026-07", price: 3240, contractDate: "2026-07-03" },
+  { id: "H-249", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-07", price: 3300, contractDate: "2026-07-21" },
+  { id: "H-250", origin: "오봉", destination: "알마티", containerType: "40FT", cargoCategory: "자동차부품", transportMonth: "2026-08", price: 3350, contractDate: "2026-08-05" },
+];
 
-// mulberry32 — 결정론적 의사난수 생성기 (seed 고정)
-function mulberry32(seed: number) {
-  let a = seed;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+// 같은 노선이지만 컨테이너·화물이 달라 유사도 임계값(0.7) 아래로 걸러져야 하는 사례.
+const almatyRouteOther: HistoricalQuote[] = [
+  { id: "H-251", origin: "오봉", destination: "알마티", containerType: "20FT", cargoCategory: "전자부품", transportMonth: "2026-07", price: 1850, contractDate: "2026-07-12" },
+];
+
+// 부산 → 시안 · 20FT · 철강 코일 — KORAIL-2026-003과 같은 조합으로, "유사 견적 1건"이 아니라
+// 실제 분포(σ)를 보여줄 수 있도록 여러 달치를 채운다.
+const xianRoute20FT: HistoricalQuote[] = [
+  { id: "H-260", origin: "부산", destination: "시안", containerType: "20FT", cargoCategory: "철강 코일", transportMonth: "2026-07", price: 2240, contractDate: "2026-07-08" },
+  { id: "H-264", origin: "부산", destination: "시안", containerType: "20FT", cargoCategory: "철강 코일", transportMonth: "2026-04", price: 2110, contractDate: "2026-04-11" },
+  { id: "H-265", origin: "부산", destination: "시안", containerType: "20FT", cargoCategory: "철강 코일", transportMonth: "2026-05", price: 2150, contractDate: "2026-05-14" },
+  { id: "H-266", origin: "부산", destination: "시안", containerType: "20FT", cargoCategory: "철강 코일", transportMonth: "2026-06", price: 2190, contractDate: "2026-06-09" },
+  { id: "H-267", origin: "부산", destination: "시안", containerType: "20FT", cargoCategory: "철강 코일", transportMonth: "2026-07", price: 2260, contractDate: "2026-07-26" },
+];
+
+// 의왕 → 비슈케크 · 40FT · 산업 소재 — KORAIL-2026-004과 같은 조합.
+const bishkekRoute40FT: HistoricalQuote[] = [
+  { id: "H-261", origin: "의왕", destination: "비슈케크", containerType: "40FT", cargoCategory: "산업 소재", transportMonth: "2026-06", price: 3650, contractDate: "2026-06-06" },
+  { id: "H-271", origin: "의왕", destination: "비슈케크", containerType: "40FT", cargoCategory: "산업 소재", transportMonth: "2026-04", price: 3520, contractDate: "2026-04-18" },
+  { id: "H-272", origin: "의왕", destination: "비슈케크", containerType: "40FT", cargoCategory: "산업 소재", transportMonth: "2026-05", price: 3580, contractDate: "2026-05-20" },
+  { id: "H-273", origin: "의왕", destination: "비슈케크", containerType: "40FT", cargoCategory: "산업 소재", transportMonth: "2026-07", price: 3710, contractDate: "2026-07-15" },
+];
+
+// 오봉 → 타슈켄트 · 40FT · 전자부품 — KORAIL-2026-002와 같은 조합.
+const tashkentRoute40FT: HistoricalQuote[] = [
+  { id: "H-262", origin: "오봉", destination: "타슈켄트", containerType: "40FT", cargoCategory: "전자부품", transportMonth: "2026-07", price: 2980, contractDate: "2026-07-09" },
+  { id: "H-268", origin: "오봉", destination: "타슈켄트", containerType: "40FT", cargoCategory: "전자부품", transportMonth: "2026-05", price: 2860, contractDate: "2026-05-11" },
+  { id: "H-269", origin: "오봉", destination: "타슈켄트", containerType: "40FT", cargoCategory: "전자부품", transportMonth: "2026-06", price: 2910, contractDate: "2026-06-16" },
+  { id: "H-270", origin: "오봉", destination: "타슈켄트", containerType: "40FT", cargoCategory: "전자부품", transportMonth: "2026-07", price: 3040, contractDate: "2026-07-24" },
+];
+
+// 오봉 → 아스타나 · 40FT · 소비재 — KORAIL-2026-005와 같은 조합.
+const astanaRoute40FT: HistoricalQuote[] = [
+  { id: "H-263", origin: "오봉", destination: "아스타나", containerType: "40FT", cargoCategory: "소비재", transportMonth: "2026-06", price: 4120, contractDate: "2026-06-03" },
+  { id: "H-274", origin: "오봉", destination: "아스타나", containerType: "40FT", cargoCategory: "소비재", transportMonth: "2026-05", price: 3960, contractDate: "2026-05-09" },
+  { id: "H-275", origin: "오봉", destination: "아스타나", containerType: "40FT", cargoCategory: "소비재", transportMonth: "2026-06", price: 4050, contractDate: "2026-06-27" },
+  { id: "H-276", origin: "오봉", destination: "아스타나", containerType: "40FT", cargoCategory: "소비재", transportMonth: "2026-07", price: 4190, contractDate: "2026-07-19" },
+];
+
+// 매칭 대상은 아니지만 "정보 검색"의 과거 견적 목록을 채워 검색 화면이 실제 서비스처럼
+// 보이도록 하는 추가 노선들 — 유사도 매칭 로직이 이들을 엉뚱하게 끌어오지 않는지도 함께 검증한다.
+const decoyRoutes: HistoricalQuote[] = [
+  { id: "H-280", origin: "부산", destination: "칭다오", containerType: "20FT", cargoCategory: "생활용품", transportMonth: "2026-07", price: 1380, contractDate: "2026-07-05" },
+  { id: "H-281", origin: "오봉", destination: "비슈케크", containerType: "20FT", cargoCategory: "의류", transportMonth: "2026-06", price: 2870, contractDate: "2026-06-14" },
+  { id: "H-282", origin: "의왕", destination: "타슈켄트", containerType: "40FT", cargoCategory: "식품", transportMonth: "2026-07", price: 3110, contractDate: "2026-07-02" },
+  { id: "H-283", origin: "부산", destination: "톈진", containerType: "40FT", cargoCategory: "기계부품", transportMonth: "2026-05", price: 1960, contractDate: "2026-05-23" },
+  { id: "H-284", origin: "오봉", destination: "알마티", containerType: "40FT HC", cargoCategory: "자동차부품", transportMonth: "2026-08", price: 3480, contractDate: "2026-08-01" },
+];
+
+export const historicalQuotes: HistoricalQuote[] = [
+  ...almatyRoute40FT,
+  ...almatyRouteOther,
+  ...xianRoute20FT,
+  ...bishkekRoute40FT,
+  ...tashkentRoute40FT,
+  ...astanaRoute40FT,
+  ...decoyRoutes,
+];
+
+export type MarketPoint = { date: string; value: number };
+
+/** 결정론적 의사난수 시계열 생성기 — 매 렌더마다 값이 바뀌지 않도록 seed 고정 */
+// decimals: 반올림 자리수(기본 2). 값의 스케일이 극단적으로 작거나(예: 0.1 미만) 크면(예: 만 단위
+// 이상) 기본 2자리가 안 맞을 수 있다 — 너무 작으면 값이 뭉개져 detectAnomaly의 z-score가
+// 비정상적으로 폭발하고, 너무 크면 소수점 자체가 무의미해진다. 그래서 지표별로 자리수를
+// 지정할 수 있게 했다(예: UZS/USD는 decimals: 0).
+function generateSeries(opts: { start: number; days: number; drift: number; volatility: number; seed: number; endDate: string; decimals?: number }): MarketPoint[] {
+  const { start, days, drift, volatility, seed, endDate, decimals = 2 } = opts;
+  const scale = 10 ** decimals;
+  let value = start;
+  let s = seed;
+  const rand = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return (s / 0x7fffffff) * 2 - 1;
   };
-}
-
-const DAYS = 30;
-const TODAY = new Date('2026-08-13T00:00:00+09:00');
-
-function dateNDaysAgo(n: number): string {
-  const d = new Date(TODAY);
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
-
-function generateSeries(seed: number, base: number, dailyVolatility: number, drift = 0): MarketPoint[] {
-  const rand = mulberry32(seed);
   const points: MarketPoint[] = [];
-  let value = base;
-  for (let i = DAYS - 1; i >= 0; i--) {
-    const shock = (rand() - 0.5) * 2 * dailyVolatility;
-    value = value * (1 + drift) + shock;
-    points.push({ date: dateNDaysAgo(i), value: Math.round(value * 10000) / 10000 });
+  const end = new Date(endDate + "T00:00:00");
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    value = value + drift + rand() * volatility;
+    points.push({ date: d.toISOString().slice(0, 10), value: Math.round(value * scale) / scale });
   }
-  // 마지막 값(오늘)에 약한 상방 충격을 주어 이상탐지 데모가 항상 밋밋하지 않게 한다.
   return points;
 }
 
-export const SERIES: Record<IndicatorKey, MarketPoint[]> = {
-  usdKrw: generateSeries(1001, 1385, 4.5),
-  cnyKrw: generateSeries(1002, 191, 0.9),
-  brent: generateSeries(1003, 82, 0.9),
-  usdKzt: generateSeries(1004, 478, 2.2),
-  usdUzs: generateSeries(1005, 12750, 60),
-  usdKgs: generateSeries(1006, 87.5, 0.4),
-  kcci: generateSeries(1007, 1620, 14),
-  kci: generateSeries(1008, 980, 11),
-};
+const TODAY = "2026-08-10";
 
-// 데모에서 이상탐지 카드가 항상 빈 화면으로 보이지 않도록, 오늘 시점 값에 의도적인 급변을 하나 심어둔다
-// (결정론적 — 매 렌더링 동일). Brent가 지정학 뉴스와 함께 급등한 시나리오.
-{
-  const brent = SERIES.brent;
-  brent[brent.length - 1] = { ...brent[brent.length - 1], value: Math.round(brent[brent.length - 2].value * 1.11 * 100) / 100 };
-}
+// USD/KRW: 안정적인 흐름 뒤 마지막 값을 통계적 이상치 수준으로 밀어올려
+// z-score 이상탐지가 실제로 "탐지"를 보여주도록 구성.
+const usdKrwBase = generateSeries({ start: 1332, days: 29, drift: 0.15, volatility: 10, seed: 11, endDate: "2026-08-09" });
+export const usdKrwSeries: MarketPoint[] = [...usdKrwBase, { date: TODAY, value: 1385.2 }];
 
-export interface AnomalyResult {
-  isAnomaly: boolean;
-  zScore: number;
-  changePct: number;
-  mean: number;
-  stdDev: number;
-  latest: number;
-}
+// Brent 유가: 완만한 하락 추세 — 이상탐지 임계값은 넘지 않는 "정상 범위 내 변동" 예시.
+export const brentSeries: MarketPoint[] = generateSeries({ start: 76.5, days: 30, drift: -0.14, volatility: 0.6, seed: 23, endDate: TODAY }).map((p, i, arr) =>
+  i === arr.length - 1 ? { ...p, value: 72.4 } : p
+);
 
-/** zScore = (최신값−30일평균)/표준편차, |zScore|≥2.0 OR |전일대비변동률|≥8%면 이상탐지 (A-2) */
-export function detectAnomaly(series: MarketPoint[]): AnomalyResult {
-  const values = series.map((p) => p.value);
-  const mean = values.reduce((s, v) => s + v, 0) / values.length;
-  const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
-  const stdDev = Math.sqrt(variance);
-  const latest = values[values.length - 1];
-  const prev = values[values.length - 2] ?? latest;
-  const zScore = stdDev === 0 ? 0 : (latest - mean) / stdDev;
-  const changePct = prev === 0 ? 0 : ((latest - prev) / prev) * 100;
-  return {
-    isAnomaly: Math.abs(zScore) >= 2.0 || Math.abs(changePct) >= 8,
-    zScore,
-    changePct,
-    mean,
-    stdDev,
-    latest,
-  };
-}
+// CNY/KRW: TCR 구간이 중국 통과 구간이라 위안화가 USD보다 오히려 더 직접적인 관련
+// 변수다(USD는 인보이스 표시통화·CAF 문제인 반면, CNY는 노선이 실제로 지나는 국가의
+// 통화). 그래서 이 지표도 USD/KRW처럼 마지막 값을 통계적 이상치 수준으로 만들어
+// z-score 이상탐지가 실제로 걸리도록 구성한다(중국 제조업 PMI 부진 뉴스와 짝을 맞춤).
+const cnyKrwBase = generateSeries({ start: 194, days: 29, drift: -0.07, volatility: 0.5, seed: 17, endDate: "2026-08-09" });
+export const cnyKrwSeries: MarketPoint[] = [...cnyKrwBase, { date: TODAY, value: 190.9 }];
 
-/** 최근 구간 변화율 — A-7 해상-철도 대체수요 서술에서 재사용 */
-export function windowChangePct(series: MarketPoint[], windowDays: number): number {
-  if (series.length < windowDays + 1) windowDays = series.length - 1;
-  const from = series[series.length - 1 - windowDays].value;
-  const to = series[series.length - 1].value;
-  return from === 0 ? 0 : ((to - from) / from) * 100;
-}
+// USD/KZT, USD/UZS, USD/KGS: 카자흐스탄(텡게)·우즈베키스탄(솜)·키르기스스탄(솜) 목적지 통화.
+// KRW 기준("1 현지통화 = 몇 KRW") 대신 USD 기준("1 USD = 몇 현지통화")으로 표기한다 — 실제
+// 외환시장에서 이 통화들은 KRW보다 USD 대비로 훨씬 널리 고시되고, 운임 결제 통화도 USD이므로
+// "결제 통화 대비 목적지 통화가 얼마나 움직였는가"가 실무적으로 더 바로 참고할 수 있는 형태다.
+// 주의(방향 반전): 값이 오르면 그 통화가 달러 대비 "약세"라는 뜻이다(기존 KZT/KRW 등과는
+// 오르내림의 의미가 반대다). 세 나라 모두 변동폭이 작은 "안정적인 지표" 예시로 구성한다
+// (2026-08 시점 실거래 수준을 참고했다: USD/KZT 478~500대, USD/UZS 12,100~12,300대,
+// USD/KGS 87 안팎 — 실시간 API 연동은 아니며 이 스케일이 현실적이라는 참고용이다).
+const kztUsdBase = generateSeries({ start: 486, days: 29, drift: 0.08, volatility: 1.4, seed: 31, endDate: "2026-08-09" });
+export const kztUsdSeries: MarketPoint[] = [...kztUsdBase, { date: TODAY, value: 489.4 }];
 
-// --- 과거 유사 견적 풀 (A-1, A-3의 σ 판정·유사도 매칭 기준 데이터) -----------------
-// 코레일 실거래 이력이 없는 cold start 상태이므로 목업으로 구성했다(노선·컨테이너·화물 조합 다양화).
+// UZS는 단위가 커서(1만 이상) 소수점 관리가 무의미하다 — decimals: 0(정수 솜 단위)으로 반올림한다.
+const uzsUsdBase = generateSeries({ start: 12180, days: 29, drift: 1.6, volatility: 22, seed: 41, endDate: "2026-08-09", decimals: 0 });
+export const uzsUsdSeries: MarketPoint[] = [...uzsUsdBase, { date: TODAY, value: 12233 }];
 
-export interface HistoricalQuote {
-  id: string;
-  route: string; // routeData.ts의 destination과 매칭
-  containerType: string;
-  cargoType: string;
-  contractDate: string; // YYYY-MM-DD
-  amount: number;
-  currency: 'USD';
-}
+const kgsUsdBase = generateSeries({ start: 87.25, days: 29, drift: 0.012, volatility: 0.18, seed: 47, endDate: "2026-08-09" });
+export const kgsUsdSeries: MarketPoint[] = [...kgsUsdBase, { date: TODAY, value: 87.58 }];
 
-const HQ_ROUTES: { route: string; containerType: string; base: number }[] = [
-  { route: '알마티', containerType: '40FT HC', base: 3220 },
-  { route: '알마티', containerType: '20FT', base: 1980 },
-  { route: '아스타나', containerType: '40FT HC', base: 3450 },
-  { route: '타슈켄트', containerType: '20FT', base: 2680 },
-  { route: '타슈켄트', containerType: '40FT HC', base: 3980 },
-  { route: '비슈케크', containerType: '20FT', base: 2540 },
-  { route: '시안', containerType: '40FT', base: 1450 },
-  { route: '시안', containerType: '20FT', base: 980 },
-  { route: '상하이', containerType: '40FT', base: 1080 },
-];
+// KCCI(한국형 컨테이너운임지수, 종합)·KCI(그 중 한중항로 서브지수) — 부산→중국 항만(연운항 등)
+// 구간과 정확히 맞는 실제 지수는 KCI(한중항로) 쪽이지만, 대시보드에서는 시장 전체 맥락을 보여주는
+// KCCI(종합)도 함께 노출해 "이 노선만의 특수한 변동인지, 전체 해상운임 시장이 같이 움직이는
+// 것인지"를 구분해서 볼 수 있게 한다(배경 조사 문서 5장 참고). 실시간 연동은 하지 않는 자체 산출
+// 시계열이며, 서로 독립적으로 이상탐지를 적용하는 동등한 신호로 다룬다. 실제 KCCI/KCI는 기준
+// 시점을 1000으로 하는 지수라 목업 시작값도 1000 안팎으로 잡았다.
+// ※ SCFI/CCFI로 바꾸는 방안도 검토했으나, 두 지수 모두 부산–연운항 근해항로를 커버하지 않는다는
+// 기존 조사 결론(배경 조사 문서 5장)에 따라 KCCI/KCI 벤치마킹 방식을 그대로 유지한다.
+// KCI(한중항로)는 근해항로 개별수급(A-7)·해상-철도 대체수요 서술에 계속 쓰인다 — 이 두 로직은
+// "부산-연운항 구간"에 특정된 것이라, 노선 특정성이 없는 KCCI(종합)보다 KCI가 더 정확히 맞는다.
+// KCI 쪽 마지막 구간을 상승 추세로 만들어 대체수요 서술이 실제로 상승 방향 메시지를 내는 모습을
+// 보여준다. KCCI(종합)는 상대적으로 안정적인 지표 예시로 구성한다.
+const kcciBase = generateSeries({ start: 1035, days: 29, drift: 0.35, volatility: 9, seed: 61, endDate: "2026-08-09" });
+export const kcciSeries: MarketPoint[] = [...kcciBase, { date: TODAY, value: 1046 }];
 
-const CARGO_TYPES = ['건설중장비 부품', '전자부품', '방직 원단', '자동차 부품', '생활용품', '화학원료'];
+const kciBase = generateSeries({ start: 890, days: 29, drift: 3.6, volatility: 14, seed: 67, endDate: "2026-08-09" });
+export const kciSeries: MarketPoint[] = [...kciBase, { date: TODAY, value: 1042 }];
 
-function buildHistoricalQuotes(): HistoricalQuote[] {
-  const rand = mulberry32(2024);
-  const quotes: HistoricalQuote[] = [];
-  let idx = 0;
-  for (let m = 0; m < 6; m++) {
-    for (const spec of HQ_ROUTES) {
-      // 6개월 x 9개 조합 = 54건 중 임의로 걸러 약 33건 수준으로 맞춘다
-      if (rand() < 0.4) continue;
-      idx += 1;
-      const d = new Date(TODAY);
-      d.setMonth(d.getMonth() - m, 1 + Math.floor(rand() * 26));
-      const noise = (rand() - 0.5) * 0.16; // ±8%
-      quotes.push({
-        id: `hq-${idx}`,
-        route: spec.route,
-        containerType: spec.containerType,
-        cargoType: CARGO_TYPES[Math.floor(rand() * CARGO_TYPES.length)],
-        contractDate: d.toISOString().slice(0, 10),
-        amount: Math.round(spec.base * (1 + noise)),
-        currency: 'USD',
-      });
-    }
-  }
-  return quotes;
-}
-
-export const historicalQuotes: HistoricalQuote[] = buildHistoricalQuotes();
-
-/**
- * Case 상세("현재 시장정보" 카드)에 노출할 지표를 노선 특성으로 필터링한다 (A-4, A-8).
- * 목적지 통화 하나만, KCI는 연운항 경유 노선에만, KCCI(종합)는 대시보드 전용이라 여기 포함하지 않는다.
- */
-export function relevantIndicatorsForRoute(route: {
-  currencyPair: CurrencyPairLike | null;
-  hasSeaLeg: boolean;
-}): IndicatorKey[] {
-  const list: IndicatorKey[] = ['usdKrw', 'cnyKrw', 'brent'];
-  if (route.currencyPair) list.push(CURRENCY_TO_INDICATOR[route.currencyPair]);
-  if (route.hasSeaLeg) list.push('kci');
-  return list;
-}
-
-type CurrencyPairLike = 'USD/KZT' | 'USD/UZS' | 'USD/KGS';
-const CURRENCY_TO_INDICATOR: Record<CurrencyPairLike, IndicatorKey> = {
-  'USD/KZT': 'usdKzt',
-  'USD/UZS': 'usdUzs',
-  'USD/KGS': 'usdKgs',
-};
-
-// --- "KORAIL LINK 종합 지수" (A-5) ------------------------------------------
-// 목업/자체 산출 지수다 — 외부 공식 지수(SCFI/CCFI/KCCI 등)가 아니다. 화면에서 반드시
-// "자체 종합 지수"로 라벨링한다(마스터 컨텍스트 비타협 원칙 7).
-
-export interface CompositeIndexPoint {
-  month: string; // YYYY-MM
-  index: number; // 노선·컨테이너 버킷별 z-score 표준화 후 월평균
-}
-
-export function buildCompositeIndex(): CompositeIndexPoint[] {
-  const buckets = new Map<string, HistoricalQuote[]>();
-  for (const q of historicalQuotes) {
-    const key = `${q.route}|${q.containerType}`;
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key)!.push(q);
-  }
-
-  const zByQuoteId = new Map<string, number>();
-  for (const quotes of buckets.values()) {
-    const amounts = quotes.map((q) => q.amount);
-    const mean = amounts.reduce((s, v) => s + v, 0) / amounts.length;
-    const std = Math.sqrt(amounts.reduce((s, v) => s + (v - mean) ** 2, 0) / amounts.length) || 1;
-    for (const q of quotes) zByQuoteId.set(q.id, (q.amount - mean) / std);
-  }
-
-  const monthly = new Map<string, number[]>();
-  for (const q of historicalQuotes) {
-    const month = q.contractDate.slice(0, 7);
-    if (!monthly.has(month)) monthly.set(month, []);
-    monthly.get(month)!.push(zByQuoteId.get(q.id)!);
-  }
-
-  return [...monthly.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([month, zs]) => ({ month, index: zs.reduce((s, v) => s + v, 0) / zs.length }));
-}
+// ※ "연운항 환적 이슈"·"TCR 운송" 팩터는 가격 시계열이 아니라 뉴스 건수 기반 신호라
+// z-score 이상탐지 대상이 아니다(1단계 뉴스 큐레이션 범위). 여기서는 다루지 않는다.
+export const marketSeries = {
+  usdKrw: usdKrwSeries,
+  brent: brentSeries,
+  cnyKrw: cnyKrwSeries,
+  kztUsd: kztUsdSeries,
+  uzsUsd: uzsUsdSeries,
+  kgsUsd: kgsUsdSeries,
+  kcci: kcciSeries,
+  kci: kciSeries,
+} as const;

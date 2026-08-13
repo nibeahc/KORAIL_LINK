@@ -1,33 +1,52 @@
-// 세금계산서 자동 생성 (기능_상세_스펙.md B-7) — Invoice 정산 대조 결과를 그대로 활용한다.
-// 실제 국세청 홈택스 연동이 아니라 미리보기 시뮬레이션이다.
+// TASK 06(계약-운임-정산 AX) 대응 — 세금계산서 자동 생성 시뮬레이션.
+// 실제 국세청 홈택스 연동이 아니라, Invoice 정산 대조 결과(documentEngine.ts의
+// buildInvoiceComparison)를 그대로 재사용해 세금계산서 미리보기를 결정론적으로 만든다.
+// 별도 데이터소스를 두지 않으므로 정산 화면과 세금계산서 금액이 항상 일치한다.
 
-import type { TaxInvoice } from './types';
+import type { CaseItem } from "./types";
+import type { InvoiceComparison } from "./documentEngine";
 
-function hashBusinessNumber(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  const digits = Math.abs(hash).toString().padStart(9, '0').slice(0, 9);
-  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5, 9)}`;
+export type TaxInvoice = {
+  issueDate: string;
+  supplierName: string;
+  supplierBizNo: string;
+  buyerName: string;
+  buyerBizNo: string;
+  itemDescription: string;
+  taxType: "영세율" | "일반과세";
+  supplyAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+};
+
+// Case 관련 문자열(이름)에서 결정론적으로 숫자를 뽑아 목업 사업자번호를 만든다 —
+// 매번 같은 이름이면 같은 번호가 나온다(랜덤 아님).
+function mockBizNo(seed: string): string {
+  const n = seed.split("").reduce((sum, c) => sum + c.charCodeAt(0), 0);
+  const a = String(100 + (n % 900)).padStart(3, "0");
+  const b = String(10 + (n % 90)).padStart(2, "0");
+  const c = String(10000 + (n % 90000)).padStart(5, "0");
+  return `${a}-${b}-${c}`;
 }
 
-const SUPPLIER_NAME = '한국철도공사';
-
-/**
- * 과세유형 기본값은 영세율(세액 0원)이다 — 국외공급·외국항행용역(국제복합운송)은 영세율 대상이라
- * 공급가액의 10%를 기계적으로 계산하지 않는다. 공급가액은 정산 화면의 Invoice 총액과 항상 같은
- * 소스(invoiceTotal 인자)를 그대로 쓴다 — 별도 데이터소스를 두지 않는다.
- */
-export function buildTaxInvoice(shipperName: string, invoiceTotal: number): TaxInvoice {
+// 부가가치세법상 국외공급 용역·외국항행용역 등은 영세율(과세표준 × 0%) 적용 대상이며,
+// KORAIL LINK의 핵심 시나리오(국제복합운송)가 여기 해당한다. 그래서 고정 10%를 기계적으로
+// 적용하지 않고 기본값을 영세율로 둔다(2026-08-12, 팀 피드백 반영). 실제 과세유형 판단(부수
+// 용역 포함 여부·계약조건 등)은 세무 담당자 확인이 필요하다는 점을 화면에 함께 표시한다.
+export function buildTaxInvoice(item: CaseItem, invoice: InvoiceComparison): TaxInvoice {
+  const supplyAmount = invoice.invoiceTotal;
+  const taxType: "영세율" | "일반과세" = "영세율";
+  const taxAmount = taxType === "영세율" ? 0 : Math.round(supplyAmount * 0.1);
   return {
-    id: crypto.randomUUID(),
-    issuedDate: new Date().toISOString().slice(0, 10),
-    supplierBusinessNumber: hashBusinessNumber(SUPPLIER_NAME),
-    customerBusinessNumber: hashBusinessNumber(shipperName),
-    item: '국제운송용역',
-    taxType: 'zero_rated',
-    supplyAmount: invoiceTotal,
-    vatAmount: 0,
-    totalAmount: invoiceTotal,
-    createdAt: new Date().toISOString(),
+    issueDate: item.date,
+    supplierName: item.forwarder,
+    supplierBizNo: mockBizNo(item.forwarder),
+    buyerName: item.shipper,
+    buyerBizNo: mockBizNo(item.shipper),
+    itemDescription: `국제운송용역 (${item.route})`,
+    taxType,
+    supplyAmount,
+    taxAmount,
+    totalAmount: supplyAmount + taxAmount,
   };
 }

@@ -1,70 +1,61 @@
-// 물류·시황 뉴스 (목업, 하드코딩) — 기능_상세_스펙.md A-4
-import type { IndicatorKey } from './marketData';
+// 운임 인텔리전스용 뉴스 목업 데이터.
+// 실 서비스 전환 시 뉴스 검색 API(네이버 뉴스, 물류 전문지 RSS 등) 연동으로 교체한다.
+// indicator가 있는 기사는 marketData.ts의 시계열과 연결되어 causalAnalysis.ts가
+// z-score 이상탐지 결과와 매칭할 때 사용한다(HAERO의 뉴스-이상탐지 매칭 패턴 참고).
+//
+// [카테고리 우선순위 — 외부 조사 결과, 아이디어 문서 3장 "시황 요인 우선순위" 참고]
+// 유가·환율(정량 지표)보다 중국 철도 보조금 정책·화차/컨테이너 공급·지정학 리스크가
+// 실제로는 더 직접적으로 운임을 흔드는 것으로 조사됐다. 이 셋은 시계열이 아니라
+// 뉴스/공지 기반 이벤트라 "규제"(정책)·"TCR"(화차공급)·"지정학"(신규) 카테고리로 다룬다.
+export type NewsCategory = "TCR" | "연운항" | "환율" | "유가" | "통관" | "규제" | "지정학";
 
-export type NewsCategory = 'TCR' | '연운항' | '환율' | '유가' | '통관' | '규제' | '지정학';
-
-export interface NewsArticle {
+export type NewsArticle = {
   id: string;
-  title: string;
   category: NewsCategory;
-  indicator: IndicatorKey | null;
-  publishedAt: string; // YYYY-MM-DD
+  indicator?: "usdKrw" | "brent" | "cnyKrw" | "kztUsd";
+  title: string;
   summary: string;
-}
+  source: string;
+  /** YYYY-MM-DD */
+  date: string;
+};
 
 export const newsArticles: NewsArticle[] = [
-  { id: 'n1', title: '중국-카자흐스탄 접속구간 궤간환적 처리량 증가로 TCR 소요일 소폭 단축', category: 'TCR', indicator: null, publishedAt: '2026-08-12', summary: '아라산커우/도스티크 접속구간 환적 처리 인력 증원으로 평균 대기시간이 줄었다는 현지 보도.' },
-  { id: 'n2', title: 'TCR 화차 공급 부족, 성수기 앞두고 일부 구간 운임 상승 압력', category: 'TCR', indicator: null, publishedAt: '2026-08-10', summary: '카자흐스탄 국영철도 화차 재배치 지연으로 일부 구간 운임에 상승 압력이 있다는 분석.' },
-  { id: 'n3', title: '중앙아시아행 컨테이너 수요 증가, TCR 예약 대기 발생', category: 'TCR', indicator: null, publishedAt: '2026-08-05', summary: '유럽向 우회 수요가 TCR로 옮겨오며 예약 대기가 발생하고 있다는 업계 관측.' },
-  { id: 'n4', title: '연운항 항만 처리능력 확충 공사 1단계 완료', category: '연운항', indicator: 'kci', publishedAt: '2026-08-11', summary: '연운항 신규 선석 1단계 공사가 완료되며 처리능력이 늘었다는 현지 발표.' },
-  { id: 'n5', title: '한중 항로 컨테이너선 기항 스케줄 조정, 부산-연운항 소요일 변동', category: '연운항', indicator: 'kci', publishedAt: '2026-08-09', summary: '선사 스케줄 조정으로 부산-연운항 구간 소요일이 반나절가량 늘어났다는 보도.' },
-  { id: 'n6', title: '연운항 인근 물류단지 신규 가동, 내륙 환적 물량 확대 전망', category: '연운항', indicator: 'kci', publishedAt: '2026-08-03', summary: '연운항 배후 물류단지가 신규 가동되며 내륙행 환적 물량이 늘어날 것이라는 전망.' },
-  { id: 'n7', title: '원/달러 환율, 미 연준 발언 여파로 급등', category: '환율', indicator: 'usdKrw', publishedAt: '2026-08-13', summary: '미 연준 위원 발언 이후 달러 강세가 이어지며 원/달러 환율이 급등했다.' },
-  { id: 'n8', title: '위안화 약세 지속, 중국 수출입 물류비 영향 주시', category: '환율', indicator: 'cnyKrw', publishedAt: '2026-08-08', summary: '위안화 약세 흐름이 이어지며 중국 경유 물류비 환산에 영향을 줄 수 있다는 분석.' },
-  { id: 'n9', title: '카자흐스탄 텡게화, 최근 원자재 가격 흐름에 연동 약세', category: '환율', indicator: 'usdKzt', publishedAt: '2026-08-07', summary: '텡게화가 원자재 가격 하락 흐름에 연동해 달러 대비 약세를 보이고 있다.' },
-  { id: 'n10', title: '우즈베키스탄 솜화 환율, 중앙은행 개입으로 변동성 축소', category: '환율', indicator: 'usdUzs', publishedAt: '2026-08-06', summary: '우즈베키스탄 중앙은행의 시장 개입으로 솜화 환율 변동성이 최근 줄어들었다는 보도.' },
-  { id: 'n11', title: '키르기스스탄 솜화, 인접국 통화 약세 여파로 동반 약세', category: '환율', indicator: 'usdKgs', publishedAt: '2026-08-04', summary: '인접국 통화 약세 흐름이 키르기스스탄 솜화에도 영향을 미치고 있다는 분석.' },
-  { id: 'n12', title: '중동 정정 불안 심화, Brent 유가 급등', category: '지정학', indicator: 'brent', publishedAt: '2026-08-13', summary: '중동 지역 정정 불안이 심화되며 Brent 유가가 급등했다. 해상·내륙 운임 전반에 상승 압력이 우려된다.' },
-  { id: 'n13', title: 'OPEC+ 감산 연장 논의, 유가 상방 압력 지속 전망', category: '유가', indicator: 'brent', publishedAt: '2026-08-11', summary: 'OPEC+의 감산 연장 논의가 이어지며 유가 상방 압력이 당분간 지속될 것이라는 전망.' },
-  { id: 'n14', title: '미국 원유 재고 예상보다 큰 폭 감소, 유가 상승', category: '유가', indicator: 'brent', publishedAt: '2026-08-02', summary: '미국 주간 원유 재고가 예상보다 크게 줄며 유가가 상승 마감했다.' },
-  { id: 'n15', title: '카자흐스탄, 국경통과 화물 통관서류 전자화 시범사업 발표', category: '통관', indicator: null, publishedAt: '2026-08-12', summary: '아라산커우 인근 통관서류 전자화 시범사업이 발표되며 향후 통관 소요시간 단축이 기대된다.' },
-  { id: 'n16', title: '중국 세관, 임시 통관 검사 강화 조치 시행', category: '통관', indicator: null, publishedAt: '2026-08-09', summary: '일부 품목에 대해 중국 세관의 통관 검사가 일시적으로 강화됐다는 현지 보도.' },
-  { id: 'n17', title: '우즈베키스탄, 통과운송 화물 원산지증명서 요건 완화', category: '통관', indicator: null, publishedAt: '2026-08-01', summary: '통과운송(transit) 화물에 대한 원산지증명서 제출 요건이 일부 완화됐다는 발표.' },
-  { id: 'n18', title: 'SMGS 협약국, 화물운송장 전자문서 인정 범위 확대 논의', category: '규제', indicator: null, publishedAt: '2026-08-10', summary: 'OSJD 회원국 간 SMGS 화물운송장 전자문서 인정 범위 확대가 논의되고 있다는 보도.' },
-  { id: 'n19', title: '카자흐스탄, 궤간환적 화차사용료 기준 개정 예고', category: '규제', indicator: null, publishedAt: '2026-08-06', summary: '궤간환적 구간 화차사용료 산정 기준 개정이 예고되어 관련 비용에 영향이 있을 수 있다.' },
-  { id: 'n20', title: '중국-중앙아시아 물류회랑 관련 국경통과협정 갱신 협의', category: '규제', indicator: null, publishedAt: '2026-07-30', summary: '관련국 간 국경통과협정 갱신 협의가 진행 중이라는 보도.' },
-  { id: 'n21', title: '중앙아시아 역내 긴장 완화 신호, 물류회랑 안정성 개선 기대', category: '지정학', indicator: null, publishedAt: '2026-08-08', summary: '역내 긴장 완화 신호가 나오며 물류회랑 안정성 개선 기대가 커지고 있다.' },
-  { id: 'n22', title: '카스피해 인근 정세 변화, 우회 노선 검토 확산', category: '지정학', indicator: null, publishedAt: '2026-08-02', summary: '카스피해 인근 정세 변화로 일부 화주들이 우회 노선을 검토하고 있다는 보도.' },
-  { id: 'n23', title: '중국-러시아 접경 화물 흐름 변화, 만저우리 경유 물량 증가', category: '지정학', indicator: null, publishedAt: '2026-07-28', summary: '중국-러시아 접경 지역 화물 흐름 변화로 만저우리 경유 물량이 늘고 있다는 보도.' },
-  { id: 'n24', title: '위안화 강세 전환 조짐, 당국 개입 여부 주목', category: '환율', indicator: 'cnyKrw', publishedAt: '2026-07-27', summary: '위안화가 강세로 전환할 조짐을 보이며 당국 개입 여부에 시장의 관심이 쏠리고 있다.' },
-  { id: 'n25', title: '원/달러 환율, 수출업체 네고 물량에 상승폭 제한', category: '환율', indicator: 'usdKrw', publishedAt: '2026-07-25', summary: '수출업체 네고 물량이 유입되며 원/달러 환율 상승폭이 제한됐다.' },
-  { id: 'n26', title: '연운항-TCR 연계 복합운송 실적, 상반기 전년 대비 증가', category: 'TCR', indicator: null, publishedAt: '2026-07-20', summary: '연운항을 경유한 TCR 복합운송 실적이 상반기 전년 대비 늘었다는 통계 발표.' },
-  { id: 'n27', title: '한중 항로 컨테이너선 신규 취항, 공급 확대', category: '연운항', indicator: 'kci', publishedAt: '2026-07-18', summary: '한중 항로에 신규 컨테이너선이 취항하며 공급이 확대됐다는 보도.' },
-  { id: 'n28', title: 'KCCI 종합지수, 최근 한 달 완만한 상승세', category: '유가', indicator: 'kcci', publishedAt: '2026-07-15', summary: '부산발 13개 항로를 종합한 KCCI 지수가 최근 한 달 완만한 상승세를 보이고 있다.' },
-  { id: 'n29', title: '중국 내륙 철도망 정비, 시안·우루무치 경유 리드타임 단축 기대', category: '통관', indicator: null, publishedAt: '2026-07-10', summary: '중국 내륙 철도망 정비 사업이 진행되며 시안·우루무치 경유 구간 리드타임 단축이 기대된다.' },
-  { id: 'n30', title: '카자흐스탄 국경통과 화물 검사 절차 간소화 시행', category: '통관', indicator: null, publishedAt: '2026-07-05', summary: '카자흐스탄 국경통과 화물 검사 절차가 일부 간소화되어 시행됐다는 발표.' },
+  { id: "N-1", category: "TCR", title: "중국–중앙아시아 철도 물동량 증가, 일부 구간 운송 지연", summary: "연운항 → 알마티 구간의 최근 물동량과 운송 일정 변화를 다룬 시장 브리핑입니다.", source: "Global Rail News", date: "2026-08-10" },
+  { id: "N-2", category: "연운항", title: "연운항 환적 처리시간 증가 관련 업계 동향", summary: "성수기 물량 집중으로 환적 처리시간이 평시 대비 늘어난 것으로 확인됩니다.", source: "Port Logistics Daily", date: "2026-08-10" },
+  { id: "N-3", category: "환율", indicator: "usdKrw", title: "원/달러 환율 1,380원대 진입, 변동성 확대", summary: "달러 결제 운송구간의 견적 유효기간과 환율 적용일 확인이 권장됩니다.", source: "외환시장 동향", date: "2026-08-09" },
+  { id: "N-4", category: "환율", indicator: "usdKrw", title: "미 연준 발언 이후 원화 약세 압력 확대", summary: "단기 달러 강세 요인이 부각되며 원/달러 환율 상단이 높아지는 분위기입니다.", source: "외환시장 동향", date: "2026-08-08" },
+  { id: "N-5", category: "유가", indicator: "brent", title: "Brent 유가 완만한 조정 국면 지속", summary: "해상운송 BAF 산정 시점과 포함 여부를 함께 확인할 수 있습니다.", source: "Energy Monitor", date: "2026-08-09" },
+  { id: "N-6", category: "통관", title: "카자흐스탄 통관 서류 요건 일부 개정 안내", summary: "원산지증명서 제출 방식이 일부 변경되어 통관 지연 가능성이 있습니다.", source: "Customs Watch", date: "2026-08-06" },
+  { id: "N-7", category: "환율", indicator: "cnyKrw", title: "위안화 약세 지속, TCR 구간 통과비용 변수로 부각", summary: "중국 경기 둔화 우려로 위안화가 완만한 약세를 이어가며, TCR 통과 구간의 원화 환산 비용에 영향을 줄 수 있습니다.", source: "외환시장 동향", date: "2026-08-08" },
+  { id: "N-8", category: "TCR", title: "TCR 화물열차 배차 간격 단축 발표", summary: "중국철도공사가 8월부터 TCR 주요 구간의 배차 간격을 단축한다고 밝혔습니다.", source: "Global Rail News", date: "2026-08-07" },
+  { id: "N-9", category: "TCR", title: "중국철도, TCR 노선 화물 우선순위 조정 검토", summary: "컨테이너 화물과 벌크 화물 간 선로 배정 우선순위 조정이 논의되고 있습니다.", source: "물류신문", date: "2026-08-03" },
+  { id: "N-10", category: "TCR", title: "TCR 환적 대기시간 통계 공개", summary: "최근 3개월간 연운항 TCR 환적 평균 대기시간이 소폭 늘어난 것으로 집계됐습니다.", source: "Port Logistics Daily", date: "2026-07-29" },
+  { id: "N-11", category: "연운항", title: "연운항 신규 크레인 가동, 처리능력 확대", summary: "신규 갠트리 크레인 3기가 가동을 시작하며 환적 처리능력이 확대될 전망입니다.", source: "Port Logistics Daily", date: "2026-08-05" },
+  { id: "N-12", category: "연운항", title: "연운항 항만 노조 부분파업 예고", summary: "임금 협상 지연으로 일부 하역 인력의 부분파업이 예고되어 일정 확인이 필요합니다.", source: "Global Rail News", date: "2026-08-01" },
+  { id: "N-13", category: "연운항", title: "연운항–알마티 구간 정기 컨테이너 열차 증편", summary: "주 3회이던 정기 열차가 주 4회로 증편되어 운송 리드타임 단축이 기대됩니다.", source: "Global Rail News", date: "2026-07-28" },
+  { id: "N-14", category: "환율", indicator: "usdKrw", title: "한국은행, 환율 변동성 확대에 구두개입 시사", summary: "최근 원/달러 환율 급등에 대해 당국이 시장 안정 의지를 밝혔습니다.", source: "외환시장 동향", date: "2026-08-07" },
+  { id: "N-15", category: "환율", indicator: "usdKrw", title: "달러 인덱스 강세, 원화 약세 압력 지속", summary: "미국 고용지표 호조로 달러 강세가 이어지며 원/달러 상단이 높아지고 있습니다.", source: "외환시장 동향", date: "2026-08-05" },
+  { id: "N-16", category: "환율", indicator: "cnyKrw", title: "중국 8월 제조업 PMI 부진, 위안화 약세", summary: "예상치를 밑돈 제조업 지표로 위안화 약세 압력이 커지고 있습니다.", source: "외환시장 동향", date: "2026-08-06" },
+  { id: "N-17", category: "환율", indicator: "cnyKrw", title: "인민은행, 위안화 기준환율 소폭 절하 고시", summary: "중국 인민은행이 위안화 기준환율을 전일 대비 소폭 절하 고시했습니다.", source: "외환시장 동향", date: "2026-08-02" },
+  { id: "N-18", category: "유가", indicator: "brent", title: "OPEC+ 증산 합의, Brent 하락 압력", summary: "OPEC+ 산유국들의 증산 합의 소식에 Brent 유가가 하락 압력을 받고 있습니다.", source: "Energy Monitor", date: "2026-08-04" },
+  { id: "N-19", category: "유가", indicator: "brent", title: "홍해 항로 리스크 완화, 해상운임 안정", summary: "홍해 항로 안전 우려가 다소 완화되며 해상운임 지수가 안정세를 보이고 있습니다.", source: "Energy Monitor", date: "2026-07-30" },
+  { id: "N-20", category: "통관", title: "우즈베키스탄 통관 전자신고 시스템 전면 도입", summary: "8월부터 통관 신고가 전자시스템으로 일원화되어 서류 준비 방식 확인이 필요합니다.", source: "Customs Watch", date: "2026-08-06" },
+  { id: "N-21", category: "통관", title: "카자흐스탄, 위험물 컨테이너 통관 절차 강화", summary: "위험물 신고서(DG Declaration) 사전 제출 요건이 강화되었습니다.", source: "Customs Watch", date: "2026-07-31" },
+  { id: "N-22", category: "규제", title: "OSJD, SMGS 화물운송장 전자화 로드맵 발표", summary: "OSJD가 SMGS 화물운송장의 단계적 전자문서화 계획을 발표했습니다.", source: "OSJD Bulletin", date: "2026-08-08" },
+  { id: "N-23", category: "규제", title: "중국 국경통과 화물 컨테이너 봉인 규정 개정", summary: "국경통과역 컨테이너 봉인(seal) 확인 절차가 일부 강화됩니다.", source: "물류신문", date: "2026-07-27" },
+  { id: "N-24", category: "규제", title: "카자흐스탄–우즈베키스탄 국경통과 협정 갱신", summary: "양국 간 철도 국경통과 협정이 갱신되어 통과 절차가 일부 간소화될 전망입니다.", source: "OSJD Bulletin", date: "2026-08-09" },
+  // ① 중국 정부의 철도 보조금 정책 — 조사 결과 가장 직접적인 변수로 확인됨.
+  // SOC(자국 소유) 컨테이너 보조금이 축소되면 COC(선사 소유) 컨테이너 공급이 줄며 운임이
+  // 급등하는 패턴이 실제로 관측됐다(2021년 연운항 루트: 약 4천 달러 → 7,500~8,000달러).
+  { id: "N-25", category: "규제", title: "중국, TCR SOC 컨테이너 보조금 축소 검토", summary: "중국철도공사가 자국 소유(SOC) 컨테이너 보조금 축소를 검토 중인 것으로 확인됩니다. 2021년에도 유사한 조치 이후 연운항 루트 운임이 약 4천 달러에서 7,500~8,000달러까지 급등한 전례가 있어 주시가 필요합니다.", source: "물류신문", date: "2026-08-09" },
+  { id: "N-26", category: "규제", title: "중국철도, COC 컨테이너 공급 축소 조짐", summary: "선사 소유(COC) 컨테이너 공급이 줄어들며 일부 구간에서 컨테이너 확보 경쟁이 발생하고 있습니다.", source: "Global Rail News", date: "2026-08-02" },
+  // ② 화차·컨테이너 공급 상황 — 중국-카자흐스탄 국경(아라산커우 등)에서 왜건 부족과
+  // 컨테이너 적체가 겹치면 대기일수가 10일→45~50일까지 늘어난 사례가 확인됨.
+  { id: "N-27", category: "TCR", title: "아라산커우 국경, 화차 부족으로 대기일수 급증", summary: "중국–카자흐스탄 국경 아라산커우에서 화차(왜건) 부족과 컨테이너 적체가 겹치며 평균 대기일수가 10일에서 최대 45~50일까지 늘어난 것으로 집계됐습니다. 대기일수는 체화료·운임 상승으로 직결됩니다.", source: "카고프레스", date: "2026-08-05" },
+  { id: "N-28", category: "TCR", title: "도스티크 국경통과역, 궤간 환적 적체 심화", summary: "1435mm–1520mm 궤간 환적 처리량이 물동량 증가를 따라가지 못해 적체가 심화되고 있습니다.", source: "카고프레스", date: "2026-07-30" },
+  // ③ 지정학 리스크 — 러시아-우크라이나 전쟁 이후 TSR 이용이 제재·보험 부보 제한 등으로
+  // 위축되며 물량이 TCR(중국 경유)로 쏠리는 현상이 확인됨. TCR 운임에도 간접 영향.
+  { id: "N-29", category: "지정학", title: "TSR 제재 여파 지속, 화주들 TCR로 전환 가속", summary: "러시아-우크라이나 전쟁 이후 TSR(시베리아횡단철도) 이용에 대한 제재·보험 부보 제한이 이어지며, 유럽행 화주들이 TCR(중국횡단철도) 경유로 전환하는 흐름이 지속되고 있습니다. 이는 TCR 구간의 물동량 압박과 운임 상승 요인으로 작용할 수 있습니다.", source: "물류신문", date: "2026-08-06" },
+  { id: "N-30", category: "지정학", title: "러시아 관련 해상보험 부보 제한 연장", summary: "일부 보험사가 러시아 경유 화물에 대한 부보 제한을 연장하며 TSR 대체 수요가 이어지고 있습니다.", source: "물류신문", date: "2026-07-29" },
 ];
-
-export function matchNewsForIndicator(indicator: IndicatorKey, limit = 5): NewsArticle[] {
-  return newsArticles
-    .filter((a) => a.indicator === indicator)
-    .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1))
-    .slice(0, limit);
-}
-
-/** 이번 주(최근 7일) 이벤트성 뉴스 — 정책(규제)·화차공급(TCR)·지정학 카테고리를 우선한다 (A-4) */
-export function thisWeekBriefingNews(limit = 6): NewsArticle[] {
-  const priority: NewsCategory[] = ['규제', 'TCR', '지정학', '통관', '연운항', '환율', '유가'];
-  const cutoff = new Date('2026-08-13T00:00:00+09:00');
-  cutoff.setDate(cutoff.getDate() - 7);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return [...newsArticles]
-    .filter((a) => a.publishedAt >= cutoffStr)
-    .sort((a, b) => {
-      const pa = priority.indexOf(a.category);
-      const pb = priority.indexOf(b.category);
-      if (pa !== pb) return pa - pb;
-      return a.publishedAt < b.publishedAt ? 1 : -1;
-    })
-    .slice(0, limit);
-}
