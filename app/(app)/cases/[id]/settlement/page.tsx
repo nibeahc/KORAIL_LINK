@@ -325,8 +325,10 @@ export default function CaseSettlementPage() {
           </section>
 
           <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
-            <h2 className="text-sm font-medium text-neutral-700">이의제기 챗봇</h2>
-            <p className="mt-1 text-xs text-neutral-400">실시간 LLM 호출이 아니라, 이미 계산된 판정 근거를 규칙 기반으로 인용합니다.</p>
+            <h2 className="text-sm font-medium text-neutral-700">정산 도우미</h2>
+            <p className="mt-1 text-xs text-neutral-400">
+              이 Case의 견적 검증·계약·문서·정산 정보를 바탕으로 답합니다. LLM 응답이 불가능하면 이미 계산된 판정 근거를 규칙 기반으로 인용해 대신 답합니다.
+            </p>
             <div className="mt-3 space-y-3">
               {(item.disputeMessages ?? []).map((m) => (
                 <div key={m.id} className={m.role === 'user' ? 'text-right' : ''}>
@@ -340,13 +342,14 @@ export default function CaseSettlementPage() {
                   {m.evidence.length > 0 && <p className="mt-1 text-xs text-neutral-400">근거: {m.evidence.join(', ')}</p>}
                 </div>
               ))}
+              {chatSending && <p className="text-xs text-neutral-400">답변 작성 중…</p>}
             </div>
             <div className="mt-4 flex gap-2">
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="예: 왜 이렇게 비싸요? / 차액이 얼마예요? / 왜 늦어져요?"
+                placeholder="예: 이 견적이 왜 높게 나왔나요? / 이 특약은 왜 필요한가요? / 정산 차액이 왜 발생했나요?"
                 className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
               />
               <button disabled={chatSending} onClick={handleSend} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">

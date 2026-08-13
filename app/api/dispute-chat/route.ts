@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     {
       role: 'system',
       content:
-        '당신은 KORAIL LINK 분쟁 검토 보조자입니다. 제공된 case context의 사실만 근거로 한국어로 답하세요. 불확실한 내용은 확인이 필요하다고 명시하고, 금액·문서·계약 항목을 구분해 간결한 Markdown으로 답하세요.',
+        '당신은 KORAIL LINK 정산 도우미입니다. 정산 화면에서 담당자를 돕지만, 답변 범위는 정산에 국한되지 않고 이 Case의 견적 검증(σ 판정)·시황 인과분석·계약 특약·문서 대조·Cost Ledger·Invoice 비교 전반을 아우릅니다. 제공된 case context의 사실만 근거로 한국어로 답하세요. 불확실한 내용은 확인이 필요하다고 명시하고, 금액·문서·계약 항목을 구분해 간결한 Markdown으로 답하세요.',
     },
     ...history.map((item) => ({ role: item.role === 'bot' ? 'assistant' : 'user', content: item.text })),
     { role: 'user', content: `질문: ${question}\n\nCase context:\n${contextText}` },

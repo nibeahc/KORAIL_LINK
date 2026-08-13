@@ -1,5 +1,5 @@
-// 이의제기 챗봇 — 실제 LLM 호출이 아니다. 키워드 매칭으로 이미 계산된 판정 근거를 인용해 답한다 (B-8)
-// causalAnalysis.ts와 같은 "결정론적 템플릿" 철학이다.
+// 정산 도우미(구 이의제기 챗봇)의 규칙 기반 폴백 — LLM 호출(app/api/dispute-chat)이 실패했을 때만 쓰인다.
+// 키워드 매칭으로 이미 계산된 판정 근거를 인용해 답한다 (B-8). causalAnalysis.ts와 같은 "결정론적 템플릿" 철학이다.
 
 import type { InvoiceSummary } from './settlementEngine';
 import type { NewsArticle } from './newsData';
