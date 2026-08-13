@@ -820,6 +820,7 @@ function Documents({item,docs,onUpload,routePath,goToTab}:{item:CaseItem;docs:Re
 
 function DocumentCard({type,item,state,onUpload,routePath,featured=false}:{type:Exclude<DocumentType,'Invoice'>;item:CaseItem;state:DocState;onUpload:(type:DocumentType,file?:File|string)=>void;routePath:RoutePath;featured?:boolean}){
  const inputId=`upload-${type}`;
+ const fileInputRef=useRef<HTMLInputElement>(null);
  const info=DOCUMENT_INFO[type];
  const liveLabels:Record<string,string>={shipperName:'송하인',consignee:'수하인',cargoType:'품목',origin:'출발지',destination:'도착지',containerType:'컨테이너 타입',containerCount:'컨테이너 수량',totalWeightTon:'총중량',seaLegOrigin:'선적지',seaLegDestination:'도착항'};
  const extraction:DocumentExtraction|null=state.status==='done'?(state.snapshot?{type,fields:Object.entries(state.snapshot).map(([key,value])=>({label:liveLabels[key]??key,baseline:'',extracted:value??'확인 필요',status:value?'unknown' as const:'mismatch' as const}))}:buildDocumentExtraction(type,item,routePath)):null;
@@ -827,7 +828,7 @@ function DocumentCard({type,item,state,onUpload,routePath,featured=false}:{type:
  const checklistFailCount=extraction?.checklist?.filter(c=>!c.pass).length??0;
  const needsAttention=mismatchCount>0||checklistFailCount>0;
  return <section className={`card doc-card${featured?' doc-card-featured':''}`}><div className="doc-card-head"><div><b>{type}</b>{state.fileName&&<small>{state.fileName}</small>}</div>{state.status==='done'&&<Badge tone={needsAttention?'red':'green'}>{needsAttention?'확인 필요':'정보 반영됨'}</Badge>}</div>
- {state.status==='idle'&&<div className="doc-idle"><p className="doc-desc">{info.description}</p><div className="doc-fields-preview"><b>추출 예정 항목</b><div className="doc-chip-list">{info.expectedFields.map(f=><span className="doc-chip" key={f}>{f}</span>)}</div></div>{type==='화물운송장'?<><button type="button" className="primary doc-generate-btn" onClick={()=>onUpload(type,'AI 생성 초안')}><Icon name="spark"/> AI로 초안 생성</button><label className="doc-upload doc-upload-secondary" htmlFor={inputId}><Icon name="plus"/>이미 작성된 문서가 있다면 업로드<input id={inputId} type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f.name)}}/></label></>:<label className="doc-upload" htmlFor={inputId}><Icon name="plus"/>파일 업로드<input id={inputId} type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f.name)}}/></label>}<small className="doc-format-note">{info.formats.join(' · ')}</small></div>}
+ {state.status==='idle'&&<div className="doc-idle"><p className="doc-desc">{info.description}</p><div className="doc-fields-preview"><b>추출 예정 항목</b><div className="doc-chip-list">{info.expectedFields.map(f=><span className="doc-chip" key={f}>{f}</span>)}</div></div>{type==='화물운송장'?<><button type="button" className="primary doc-generate-btn" onClick={()=>onUpload(type,'AI 생성 초안')}><Icon name="spark"/> AI로 초안 생성</button><button type="button" className="doc-upload doc-upload-secondary" onClick={()=>fileInputRef.current?.click()}><Icon name="plus"/>이미 작성된 문서가 있다면 업로드</button></>:<button type="button" className="doc-upload" onClick={()=>fileInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button>}<input ref={fileInputRef} id={inputId} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.gif,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f.name);e.currentTarget.value=''}}/><small className="doc-format-note">{info.formats.join(' · ')}</small></div>}
  {state.status==='loading'&&<div className="doc-loading"><span className="spinner"/>{state.fileName==='AI 생성 초안'?'AI가 화물운송장 초안을 작성하고 있습니다...':'AI가 문서에서 정보를 추출하고 있습니다...'}</div>}
  {extraction&&<table className="doc-fields"><tbody>{extraction.fields.map(f=><tr key={f.label} className={f.status}><td>{f.label}</td><td>{f.extracted}</td><td><Badge tone={f.status==='match'?'green':f.status==='mismatch'?'red':'blue'}>{f.status==='match'?'반영됨':f.status==='mismatch'?'확인 필요':'참고용'}</Badge></td></tr>)}</tbody></table>}
  {extraction?.checklist&&<div className="doc-checklist"><b>통일규칙 체크리스트</b>{extraction.checklist.map(c=><div className={c.pass?'pass':'fail'} key={c.label}><span>{c.pass?'✓':'✕'}</span><div><b>{c.label}</b>{c.note&&<small>{c.note}</small>}</div></div>)}</div>}
@@ -861,14 +862,15 @@ function DisputeChat({item,verdict,pressure,invoice}:{item:CaseItem;verdict:Verd
   }
  };
  return <section className="card dispute-chat">
-  <div className="card-head"><div><span className="section-kicker">DISPUTE CHATBOT</span><h3>이의제기 챗봇</h3></div></div>
+  <div className="card-head"><div><span className="section-kicker">SETTLEMENT ASSISTANT</span><h3>정산 도우미</h3></div></div>
   <div className="chat-log">{messages.map((m,i)=><div key={i} className={`chat-msg ${m.role}`}>{m.text}</div>)}</div>
   <div className="chat-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')send()}} placeholder="질문을 입력하세요"/><button onClick={send}><Icon name="arrow"/></button></div>
   <small className="hint">실시간 AI 응답이 아니라, 이미 계산된 판정 근거를 바탕으로 답하는 규칙 기반 챗봇입니다.</small>
  </section>}
 
-function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,fileName:string)=>void;notify:(m:string)=>void;validation:ValidationResult;goToTab:(t:string)=>void}){
+function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseItem;docs:Record<DocumentType,DocState>;onUpload:(type:DocumentType,file?:File|string)=>void;notify:(m:string)=>void;validation:ValidationResult;goToTab:(t:string)=>void}){
  const invoiceState=docs.Invoice;
+ const invoiceInputRef=useRef<HTMLInputElement>(null);
  const [taxInvoiceGenerated,setTaxInvoiceGenerated]=useState(false);
  const scheduleLines=useMemo(()=>splitCostByStages(item.price,costBearingStages(validation.routePath.stages)),[item.price,validation.routePath]);
  const invoice=invoiceState.status==='done' ? (() => {
@@ -887,7 +889,7 @@ function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseIte
   {!invoice&&<section className="card doc-card">
    <div className="doc-card-head"><div><b>Invoice 대조</b>{invoiceState.fileName&&<small>{invoiceState.fileName}</small>}</div></div>
    <p className="doc-desc">실제 포워더 Invoice가 도착하면 업로드해서 위 정산 내역서와 대조하세요.</p>
-   {invoiceState.status==='idle'&&<><label className="doc-upload" htmlFor="upload-invoice-settlement"><Icon name="plus"/>파일 업로드<input id="upload-invoice-settlement" type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f.name)}}/></label><small className="doc-format-note">PDF · JPG · PNG</small></>}
+   {invoiceState.status==='idle'&&<><button type="button" className="doc-upload" onClick={()=>invoiceInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button><input ref={invoiceInputRef} id="upload-invoice-settlement" type="file" hidden accept=".pdf,.png,.jpg,.jpeg,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f.name);e.currentTarget.value=''}}/><small className="doc-format-note">PDF · JPG · PNG</small></>}
    {invoiceState.status==='loading'&&<div className="doc-loading"><span className="spinner"/>AI가 Invoice에서 청구내역을 추출하고 있습니다...</div>}
   </section>}
   {invoice&&<>
