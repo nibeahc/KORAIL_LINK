@@ -5,8 +5,11 @@ import {
   validateQuote,
   computeSimilarityBreakdown,
   SIMILARITY_WEIGHTS,
+  SIMILARITY_THRESHOLD,
+  TIMING_WINDOW_MONTHS,
+  MIN_SAMPLE_SIZE,
   VERDICT_LABEL,
-  type QuoteVerdict,
+  VERDICT_TONE,
 } from '../lib/quoteEngine';
 import { historicalQuotes, SERIES, windowChangePct, relevantIndicatorsForRoute } from '../lib/marketData';
 import { buildCausalAnalysis, buildSubstitutionSignal } from '../lib/causalAnalysis';
@@ -17,15 +20,6 @@ import { Badge } from './Badge';
 import { Icon } from './Icon';
 import { Factor } from './Factor';
 import { PriceChart } from './charts/PriceChart';
-
-const VERDICT_TONE: Record<QuoteVerdict, 'red' | 'amber' | 'green'> = {
-  appropriate: 'green',
-  slightly_high: 'amber',
-  high: 'red',
-  slightly_low: 'amber',
-  low: 'red',
-  insufficient_data: 'amber',
-};
 
 function newsCount(category: string): number {
   return newsArticles.filter((n) => n.category === category).length;
@@ -235,7 +229,8 @@ export function QuoteValidationPanel({
           </ul>
           <p>
             <Icon name="info" /> 비교 결과는 노선 {SIMILARITY_WEIGHTS.route * 100}%·컨테이너 {SIMILARITY_WEIGHTS.containerType * 100}%·시기{' '}
-            {SIMILARITY_WEIGHTS.timing * 100}%·화물특성 {SIMILARITY_WEIGHTS.cargoType * 100}% 가중치를 바탕으로 산출됩니다. 이 가중치는 코레일 실거래 이력으로 검증된 값이 아닌 MVP 초기 휴리스틱입니다.
+            {SIMILARITY_WEIGHTS.timing * 100}%·화물특성 {SIMILARITY_WEIGHTS.cargoType * 100}% 가중치를 바탕으로 산출됩니다. 유사도 {SIMILARITY_THRESHOLD * 100}% 이상 · 최근{' '}
+            {TIMING_WINDOW_MONTHS}개월 이내만 채택 · 표본 {MIN_SAMPLE_SIZE}건 미만이면 σ 기본값을 씁니다({result.sampleSize}건 매칭됨). 이 가중치·임계값은 코레일 실거래 이력으로 검증된 값이 아닌 MVP 초기 휴리스틱입니다.
           </p>
         </section>
       </div>

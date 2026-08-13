@@ -86,6 +86,24 @@ function median(values: number[]): number {
 }
 
 export type QuoteVerdict = 'appropriate' | 'slightly_high' | 'high' | 'slightly_low' | 'low' | 'insufficient_data';
+export type Tone = 'red' | 'amber' | 'green';
+
+/** Badge tone(red/amber/green) — 대시보드·검증 패널 등 여러 화면이 이 하나의 맵만 참조한다 */
+export const VERDICT_TONE: Record<QuoteVerdict, Tone> = {
+  appropriate: 'green',
+  slightly_high: 'amber',
+  high: 'red',
+  slightly_low: 'amber',
+  low: 'red',
+  insufficient_data: 'amber',
+};
+
+/** tone → 실제 색상(hex) — DonutChart 점/risk-line 등 CSS 클래스가 아닌 인라인 색상이 필요한 곳에서 쓴다 */
+export const TONE_COLOR: Record<Tone, string> = {
+  green: '#1f8a5b',
+  amber: '#d78516',
+  red: '#d93d42',
+};
 
 export const VERDICT_LABEL: Record<QuoteVerdict, string> = {
   appropriate: '적정 수준',

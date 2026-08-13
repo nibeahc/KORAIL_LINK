@@ -7,7 +7,8 @@ export interface DonutSegment {
 }
 
 export function DonutChart({ segments, size = 140, thickness = 20 }: { segments: DonutSegment[]; size?: number; thickness?: number }) {
-  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const arcTotal = total || 1; // 0으로 나누기 방지용 — 화면 표시값(total)에는 쓰지 않는다
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
   let offset = 0;
@@ -19,7 +20,7 @@ export function DonutChart({ segments, size = 140, thickness = 20 }: { segments:
           {segments
             .filter((s) => s.value > 0)
             .map((s) => {
-              const dash = (s.value / total) * c;
+              const dash = (s.value / arcTotal) * c;
               const el = (
                 <circle
                   key={s.label}

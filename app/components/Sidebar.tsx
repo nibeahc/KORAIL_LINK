@@ -5,27 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getCurrentUser, getProfile, type Profile } from '../lib/supabase';
 import { useCases } from '../lib/state';
+import { Icon } from './Icon';
 
 const CASE_SUB_ITEMS: [string, string][] = [
   ['/contract', '계약'],
   ['/documents', '문서'],
   ['/settlement', '정산'],
 ];
-
-function Icon({ name }: { name: string }) {
-  const glyphs: Record<string, string> = {
-    home: '⌂',
-    case: '▤',
-    search: '⌕',
-    spark: '✦',
-    settings: '⚙',
-  };
-  return (
-    <span className="icon" aria-hidden>
-      {glyphs[name] ?? '•'}
-    </span>
-  );
-}
 
 export function Sidebar() {
   const pathname = usePathname();

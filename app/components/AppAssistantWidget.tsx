@@ -8,8 +8,10 @@ import { validateQuote } from '../lib/quoteEngine';
 import { historicalQuotes, SERIES, relevantIndicatorsForRoute } from '../lib/marketData';
 import { buildCausalAnalysis } from '../lib/causalAnalysis';
 import { buildInvoiceSummary } from '../lib/settlementEngine';
+import { answerDispute } from '../lib/disputeChatEngine';
+import { newsArticles } from '../lib/newsData';
 import { getRoute } from '../lib/routeData';
-import { CASE_STATUS_LABEL } from '../lib/types';
+import { CASE_STATUS_LABEL, type CaseItem } from '../lib/types';
 
 interface LocalMessage {
   id: string;
@@ -36,7 +38,7 @@ export function AppAssistantWidget() {
   const caseMatch = pathname.match(/^\/cases\/([^/]+)/);
   const activeCase = caseMatch ? cases.find((c) => c.id === caseMatch[1]) : undefined;
 
-  function buildCaseContext(item: NonNullable<typeof activeCase>) {
+  function analyzeCase(item: CaseItem) {
     const route = getRoute(item.masterData.destination);
     const summary = buildInvoiceSummary(item.costLedger, item.invoiceLines ?? []);
     const target = {
@@ -56,7 +58,13 @@ export function AppAssistantWidget() {
           .filter((a) => a.isAnomaly)
           .map((a) => a.narrative)
       : [];
+    const delayRelatedNews = newsArticles.filter((n) => n.category === 'TCR' || n.category === '연운항').slice(0, 3);
 
+    return { route, summary, verdict, causalNarratives, delayRelatedNews };
+  }
+
+  function buildCaseContext(item: CaseItem, analysis: ReturnType<typeof analyzeCase>) {
+    const { summary, verdict, causalNarratives } = analysis;
     return {
       scope: 'case',
       case: {
@@ -97,16 +105,26 @@ export function AppAssistantWidget() {
     const userMsg: LocalMessage = { id: crypto.randomUUID(), role: 'user', text: question };
     setMessages((prev) => [...prev, userMsg]);
 
+    const analysis = activeCase ? analyzeCase(activeCase) : null;
     let answerText = '정확한 답변을 드리기 어렵습니다. 담당자에게 문의해주세요.';
+    if (analysis) {
+      answerText = answerDispute(question, {
+        quoteVerdictNarrative: analysis.verdict.narrative,
+        causalNarratives: analysis.causalNarratives,
+        invoiceSummary: analysis.summary,
+        delayRelatedNews: analysis.delayRelatedNews,
+      }).text;
+    }
+
     try {
       const result = await requestDisputeChat({
         question,
         history: messages.slice(-10).map((m) => ({ role: m.role === 'assistant' ? 'bot' : 'user', text: m.text })),
-        context: activeCase ? buildCaseContext(activeCase) : buildGeneralContext(),
+        context: activeCase && analysis ? buildCaseContext(activeCase, analysis) : buildGeneralContext(),
       });
       answerText = result.answer;
     } catch {
-      answerText = '지금은 답변을 가져올 수 없습니다. 잠시 후 다시 시도해주세요.';
+      // keep the rule-based fallback (or the generic apology when there's no active case) computed above
     } finally {
       setSending(false);
     }

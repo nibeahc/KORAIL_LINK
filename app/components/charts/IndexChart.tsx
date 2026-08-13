@@ -1,13 +1,12 @@
 'use client';
 
 import type { CompositeIndexPoint } from '../../lib/marketData';
-
-const toneColor = (tone: string) => (tone === 'green' ? '#1f8a5b' : tone === 'amber' ? '#d78516' : '#d93d42');
+import { TONE_COLOR, type Tone } from '../../lib/quoteEngine';
 
 export interface TodayPoint {
   id: string;
   z: number;
-  tone: string;
+  tone: Tone;
 }
 
 /** 과거 시계열(±1σ 밴드)과 오늘 스냅샷을 같은 σ 단위로, 구간을 나눠 분리 표시한다 (A-5) */
@@ -36,7 +35,7 @@ export function IndexChart({ monthly, todayPoints }: { monthly: CompositeIndexPo
         <circle key={m.month} cx={xOf(i)} cy={y(m.index)} r={3} fill="#2c4870" />
       ))}
       {todayPoints.map((p, i) => (
-        <circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={4.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={1.5} />
+        <circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={4.5} fill={TONE_COLOR[p.tone]} stroke="white" strokeWidth={1.5} />
       ))}
       {monthly.map((m, i) => (
         <text key={m.month} x={xOf(i)} y={H + 13} textAnchor="middle" className="index-x-label">

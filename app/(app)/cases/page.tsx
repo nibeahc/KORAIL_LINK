@@ -68,7 +68,18 @@ export default function CaseListPage() {
           </thead>
           <tbody>
             {filtered.map((c) => (
-              <tr key={c.id} onClick={() => router.push(`/cases/${c.id}`)}>
+              <tr
+                key={c.id}
+                tabIndex={0}
+                role="link"
+                onClick={() => router.push(`/cases/${c.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    router.push(`/cases/${c.id}`);
+                  }
+                }}
+              >
                 <td>
                   <b>{c.caseNumber}</b>
                 </td>

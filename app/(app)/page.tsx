@@ -8,7 +8,7 @@ import { buildCompositeIndex, historicalQuotes, SERIES, type IndicatorKey } from
 import { buildCausalAnalysis, type CausalAnalysis } from '../lib/causalAnalysis';
 import { thisWeekBriefingNews } from '../lib/newsData';
 import { getRoute } from '../lib/routeData';
-import { validateQuote, VERDICT_LABEL, type QuoteVerdict } from '../lib/quoteEngine';
+import { validateQuote, VERDICT_LABEL, VERDICT_TONE, TONE_COLOR } from '../lib/quoteEngine';
 import { DonutChart } from '../components/charts/DonutChart';
 import { IndexChart } from '../components/charts/IndexChart';
 import { MarketCard } from '../components/MarketCard';
@@ -19,15 +19,6 @@ import { Icon } from '../components/Icon';
 
 const INDICATORS: IndicatorKey[] = ['usdKrw', 'cnyKrw', 'usdKzt', 'usdUzs', 'usdKgs', 'brent', 'kcci', 'kci'];
 const STATUS_ORDER: CaseStatus[] = ['pending_validation', 'needs_review', 'quote_confirmed', 'contracted', 'settlement'];
-
-const VERDICT_TONE: Record<QuoteVerdict, 'red' | 'amber' | 'green'> = {
-  appropriate: 'green',
-  slightly_high: 'amber',
-  high: 'red',
-  slightly_low: 'amber',
-  low: 'red',
-  insufficient_data: 'amber',
-};
 
 type LiveNewsArticle = { id: string; title: string; summary: string; url: string; source: string; publishedAt: string; category: string };
 
@@ -256,7 +247,17 @@ export default function DashboardPage() {
           </div>
           <div className="brief-list">
             {displayBriefing.map((n) => (
-              <button key={n.id} className="brief" onClick={() => 'indicator' in n && setDrawer(buildCausalAnalysis(n.indicator as IndicatorKey, SERIES[n.indicator as IndicatorKey]))}>
+              <button
+                key={n.id}
+                className="brief"
+                onClick={() => {
+                  if ('indicator' in n && n.indicator) {
+                    setDrawer(buildCausalAnalysis(n.indicator as IndicatorKey, SERIES[n.indicator as IndicatorKey]));
+                  } else if ('url' in n && n.url) {
+                    window.open(n.url, '_blank', 'noopener,noreferrer');
+                  }
+                }}
+              >
                 <span className="brief-icon blue">◒</span>
                 <div>
                   <Badge tone="blue">{n.category}</Badge>
@@ -283,7 +284,7 @@ export default function DashboardPage() {
             <div className="focus-list">
               {attentionItems.map(({ item, verdict }) => (
                 <Link key={item.id} href={`/cases/${item.id}/validation`} className="focus-item">
-                  <i className="focus-dot" style={{ background: VERDICT_TONE[verdict.verdict] === 'red' ? '#d93d42' : VERDICT_TONE[verdict.verdict] === 'amber' ? '#d78516' : '#1f8a5b' }} />
+                  <i className="focus-dot" style={{ background: TONE_COLOR[VERDICT_TONE[verdict.verdict]] }} />
                   <div>
                     <b>
                       {item.caseNumber} · {item.route}
@@ -339,7 +340,7 @@ export default function DashboardPage() {
               <div className="case-verdict">
                 <Badge tone={VERDICT_TONE[verdict.verdict]}>{VERDICT_LABEL[verdict.verdict]}</Badge>
               </div>
-              <i className="risk-line" style={{ background: VERDICT_TONE[verdict.verdict] === 'red' ? '#d45353' : VERDICT_TONE[verdict.verdict] === 'amber' ? '#e0a139' : '#4d89d5' }} />
+              <i className="risk-line" style={{ background: TONE_COLOR[VERDICT_TONE[verdict.verdict]] }} />
             </Link>
           ))}
         </div>

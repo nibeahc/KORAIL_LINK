@@ -2,10 +2,9 @@
 
 import { detectAnomaly, SERIES } from '../lib/marketData';
 
-const TODAY_LABEL = '2026년 8월 13일 목요일';
-
 export function Topbar() {
   const usdKrw = detectAnomaly(SERIES.usdKrw);
+  const todayLabel = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   return (
     <header className="topbar">
       <div>
@@ -29,7 +28,7 @@ export function Topbar() {
           </span>
           {usdKrw.isAnomaly && <i />}
         </button>
-        <span className="date">{TODAY_LABEL}</span>
+        <span className="date">{todayLabel}</span>
       </div>
     </header>
   );

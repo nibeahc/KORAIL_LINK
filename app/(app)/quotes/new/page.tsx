@@ -118,8 +118,8 @@ export default function NewQuotePage() {
               <TextField label="품목" value={form.cargoType} set={(v) => setForm((f) => ({ ...f, cargoType: v }))} />
               <SelectField label="목적지" value={form.destination} set={(v) => setForm((f) => ({ ...f, destination: v }))} opts={listDestinations().map((r) => r.destination)} />
               <SelectField label="컨테이너 타입" value={form.containerType} set={(v) => setForm((f) => ({ ...f, containerType: v }))} opts={CONTAINER_TYPES} />
-              <TextField label="컨테이너 수량" value={String(form.containerCount)} set={(v) => setForm((f) => ({ ...f, containerCount: Number(v) }))} type="number" suffix="대" />
-              <TextField label="총중량" value={String(form.totalWeightTon)} set={(v) => setForm((f) => ({ ...f, totalWeightTon: Number(v) }))} type="number" suffix="ton" />
+              <TextField label="컨테이너 수량" value={String(form.containerCount)} set={(v) => setForm((f) => ({ ...f, containerCount: Number(v) }))} type="number" suffix="대" min={1} step={1} />
+              <TextField label="총중량" value={String(form.totalWeightTon)} set={(v) => setForm((f) => ({ ...f, totalWeightTon: Number(v) }))} type="number" suffix="ton" min={0.1} step={0.1} />
               <TextField label="출발 예정일" value={form.shipmentDate} set={(v) => setForm((f) => ({ ...f, shipmentDate: v }))} type="date" />
               <SelectField label="운송조건" value={form.incoterms} set={(v) => setForm((f) => ({ ...f, incoterms: v }))} opts={INCOTERMS} />
             </div>
@@ -211,12 +211,28 @@ export default function NewQuotePage() {
   );
 }
 
-function TextField({ label, value, set, type = 'text', suffix }: { label: string; value: string; set: (v: string) => void; type?: string; suffix?: string }) {
+function TextField({
+  label,
+  value,
+  set,
+  type = 'text',
+  suffix,
+  min,
+  step,
+}: {
+  label: string;
+  value: string;
+  set: (v: string) => void;
+  type?: string;
+  suffix?: string;
+  min?: number;
+  step?: number;
+}) {
   return (
     <label className="field">
       <span>{label}</span>
       <div>
-        <input required type={type} value={value} onChange={(e) => set(e.target.value)} />
+        <input required type={type} min={min} step={step} value={value} onChange={(e) => set(e.target.value)} />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>
