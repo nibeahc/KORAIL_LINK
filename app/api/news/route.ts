@@ -5,6 +5,8 @@ export const runtime = 'nodejs';
 export const revalidate = 600;
 
 type NewsCategory = 'TCR' | '연운항' | '환율' | '유가' | '통관' | '규제' | '지정학';
+type TranslationStatus = 'translated' | 'not_configured' | 'failed' | 'not_needed';
+type TranslationReport = { status: TranslationStatus; message?: string };
 type Article = { id: string; title: string; summary: string; url: string; source: string; publishedAt: string; category: NewsCategory };
 type Feed = { name: string; url: string; international: boolean };
 
@@ -15,8 +17,8 @@ const FEEDS: Feed[] = [
   { name: 'Maritime Executive', url: 'https://www.maritime-executive.com/rss/news', international: true },
 ];
 
-const CACHE_MS = 3 * 60 * 60 * 1000;
-let cache: { expiresAt: number; articles: Article[] } | null = null;
+const CACHE_MS = 10 * 60 * 1000;
+let cache: { expiresAt: number; articles: Article[]; translation: TranslationReport } | null = null;
 
 function decode(value: string) {
   return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
@@ -83,34 +85,43 @@ async function fetchNaver(): Promise<Article[]> {
   } catch { return []; }
 }
 
-async function translateInternational(articles: Article[]) {
+async function translateInternational(articles: Article[]): Promise<{ articles: Article[]; report: TranslationReport }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || articles.length === 0) return articles;
+  if (articles.length === 0) return { articles, report: { status: 'not_needed' } };
+  if (!apiKey) return { articles, report: { status: 'not_configured', message: 'ANTHROPIC_API_KEY가 설정되지 않았습니다.' } };
   try {
     const payload = articles.map((article, index) => ({ index, title: article.title, summary: article.summary }));
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001', max_tokens: 2000, system: 'Translate each English news title and summary into concise natural Korean. Return JSON only: {"items":[{"index":0,"title":"...","summary":"..."}]}. Do not translate names, figures, or URLs.', messages: [
+      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001', max_tokens: 2000, temperature: 0, system: 'Translate each English news title and summary into concise natural Korean. Return JSON only: {"items":[{"index":0,"title":"...","summary":"..."}]}. Do not translate names, figures, or URLs.', messages: [
         { role: 'user', content: JSON.stringify(payload) },
       ] }),
     });
-    if (!response.ok) return articles;
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 240);
+      return { articles, report: { status: 'failed', message: `Claude 번역 요청 실패 (${response.status}): ${detail}` } };
+    }
     const body = (await response.json()) as { content?: Array<{ type?: string; text?: string }> };
     const content = body.content?.find((block) => block.type === 'text')?.text ?? '';
     const json = content.match(/\{[\s\S]*\}/)?.[0] ?? '{}';
     const translated = JSON.parse(json) as { items?: Array<{ index: number; title: string; summary: string }> };
+    if (!translated.items?.length) return { articles, report: { status: 'failed', message: 'Claude 응답에 번역 항목이 없습니다.' } };
     for (const item of translated.items ?? []) {
       if (articles[item.index]) articles[item.index] = { ...articles[item.index], title: item.title || articles[item.index].title, summary: item.summary || articles[item.index].summary };
     }
-  } catch { /* Keep original text when translation is unavailable. */ }
-  return articles;
+    return { articles, report: { status: 'translated' } };
+  } catch (error) {
+    return { articles, report: { status: 'failed', message: error instanceof Error ? error.message : '번역 응답을 처리하지 못했습니다.' } };
+  }
 }
 
-export async function GET() {
-  if (cache && cache.expiresAt > Date.now()) return NextResponse.json({ articles: cache.articles, cached: true });
+export async function GET(request: Request) {
+  const refresh = new URL(request.url).searchParams.get('refresh') === '1';
+  if (!refresh && cache && cache.expiresAt > Date.now()) return NextResponse.json({ articles: cache.articles, translation: cache.translation, cached: true });
   const [rssLists, naver] = await Promise.all([Promise.all(FEEDS.map(fetchRss)), fetchNaver()]);
   const rss = rssLists.flat().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 10);
-  const articles = [...(await translateInternational(rss)), ...naver].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 12);
-  cache = { expiresAt: Date.now() + CACHE_MS, articles };
-  return NextResponse.json({ articles, cached: false });
+  const { articles: translatedRss, report } = await translateInternational(rss);
+  const articles = [...translatedRss, ...naver].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 12);
+  cache = { expiresAt: Date.now() + CACHE_MS, articles, translation: report };
+  return NextResponse.json({ articles, translation: report, cached: false });
 }

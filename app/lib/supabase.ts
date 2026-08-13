@@ -160,6 +160,29 @@ export async function upsertContract(
   if (error) throw error;
 }
 
+export type ContractApproval = { id: string; approverName: string; approverEmail: string | null; status: 'pending' | 'approved' | 'rejected'; comment: string | null; signatureDataUrl: string | null; decidedAt: string | null; createdAt: string };
+
+export async function listContractApprovals(caseId: string): Promise<ContractApproval[]> {
+  const { data: contract, error: contractError } = await getSupabaseClient().from('contracts').select('id').eq('case_id', caseId).maybeSingle();
+  if (contractError) throw contractError;
+  if (!contract) return [];
+  const { data, error } = await getSupabaseClient().from('contract_approvals').select('*').eq('contract_id', contract.id).order('created_at');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ id: row.id, approverName: row.approver_name, approverEmail: row.approver_email, status: row.status, comment: row.comment, signatureDataUrl: row.signature_data_url, decidedAt: row.decided_at, createdAt: row.created_at }));
+}
+
+export async function createContractApproval(caseId: string, approverName: string, approverEmail?: string) {
+  const { data: contract, error: contractError } = await getSupabaseClient().from('contracts').select('id').eq('case_id', caseId).single();
+  if (contractError) throw contractError;
+  const { error } = await getSupabaseClient().from('contract_approvals').insert({ contract_id: contract.id, approver_name: approverName, approver_email: approverEmail || null });
+  if (error) throw error;
+}
+
+export async function decideContractApproval(id: string, status: 'approved' | 'rejected', comment: string, signatureDataUrl?: string) {
+  const { error } = await getSupabaseClient().from('contract_approvals').update({ status, comment: comment || null, signature_data_url: signatureDataUrl || null, decided_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function insertTaxInvoice(
   caseId: string,
   invoice: {

@@ -30,11 +30,13 @@ const VERDICT_TONE: Record<QuoteVerdict, 'red' | 'amber' | 'green'> = {
 };
 
 type LiveNewsArticle = { id: string; title: string; summary: string; url: string; source: string; publishedAt: string; category: string };
+type LiveRates = Partial<Record<IndicatorKey, number>>;
 
 export default function DashboardPage() {
   const { cases } = useCases();
   const [drawer, setDrawer] = useState<CausalAnalysis | null>(null);
   const [liveBriefing, setLiveBriefing] = useState<LiveNewsArticle[]>([]);
+  const [liveRates, setLiveRates] = useState<LiveRates>({});
 
   const statusCounts = useMemo(() => {
     const counts: Record<CaseStatus, number> = {
@@ -113,6 +115,13 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetch('/api/market')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Market request failed'))))
+      .then((data: { rates?: LiveRates }) => setLiveRates(data.rates ?? {}))
+      .catch(() => {});
+  }, []);
+
   function openDrawer(indicator: IndicatorKey) {
     setDrawer(buildCausalAnalysis(indicator, SERIES[indicator]));
   }
@@ -144,7 +153,7 @@ export default function DashboardPage() {
 
       <div className="market-strip">
         {INDICATORS.map((ind) => (
-          <MarketCard key={ind} indicator={ind} onClick={openDrawer} />
+          <MarketCard key={ind} indicator={ind} onClick={openDrawer} liveValue={liveRates[ind]} />
         ))}
       </div>
 
