@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useCases } from '../../../../lib/state';
 import { recommendClauses, SMGS_REFERENCE } from '../../../../lib/contractEngine';
-import { insertCaseStatusHistory, upsertContract } from '../../../../lib/supabase';
+import { insertCaseStatusHistory, replaceCostLedger, upsertContract } from '../../../../lib/supabase';
 import { getRoute } from '../../../../lib/routeData';
 import type { ClauseStatus, ContractClause, CostLedgerLine, SignStatus } from '../../../../lib/types';
 
@@ -94,6 +94,16 @@ export default function CaseContractPage() {
     );
     await insertCaseStatusHistory(item!.id, previousStatus, 'contracted').catch(() => {});
     await upsertContract(item!.id, { clauses, contractAmount: contractTotal, signStatus: 'signed', signedAt: now }).catch(() => {});
+    await replaceCostLedger(item!.id, ledgerDraft.map((line) => ({
+      stageId: line.stageId,
+      stageName: line.stageName,
+      mode: line.mode,
+      costItem: line.stageName,
+      quotedAmount: line.quotedAmount,
+      contractAmount: line.contractAmount,
+      currency: line.currency,
+      sourceType: 'contract',
+    }))).catch(() => {});
     setSigning(false);
   }
 

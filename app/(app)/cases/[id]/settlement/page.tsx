@@ -7,12 +7,13 @@ import type { InvoiceLineItem } from '../../../../lib/types';
 import { buildInvoiceDraft, buildInvoiceSummary, MATCH_CATEGORY_LABEL, type MatchCategory } from '../../../../lib/settlementEngine';
 import { buildTaxInvoice } from '../../../../lib/taxInvoiceEngine';
 import { answerDispute } from '../../../../lib/disputeChatEngine';
+import { requestDisputeChat } from '../../../../lib/disputeChatApi';
 import { validateQuote } from '../../../../lib/quoteEngine';
 import { historicalQuotes, SERIES, relevantIndicatorsForRoute } from '../../../../lib/marketData';
 import { buildCausalAnalysis } from '../../../../lib/causalAnalysis';
 import { getRoute } from '../../../../lib/routeData';
 import { newsArticles } from '../../../../lib/newsData';
-import { insertTaxInvoice, insertDisputeChatMessage } from '../../../../lib/supabase';
+import { insertTaxInvoice, insertDisputeChatMessage, saveInvoiceComparison } from '../../../../lib/supabase';
 
 const CATEGORY_COLOR: Record<MatchCategory, string> = {
   match: 'bg-green-100 text-green-700',
@@ -29,6 +30,7 @@ export default function CaseSettlementPage() {
 
   const [lines, setLines] = useState<InvoiceLineItem[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
 
   useEffect(() => {
     if (!item) return;
@@ -64,6 +66,10 @@ export default function CaseSettlementPage() {
   function persistLines(next: InvoiceLineItem[]) {
     setLines(next);
     setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, invoiceLines: next } : c)));
+    void saveInvoiceComparison({
+      caseId: item!.id,
+      lineItems: next.map((line) => ({ category: line.matchedStageId ?? 'manual', label: line.description, amount: line.amount, currency: 'USD' })),
+    }).catch(() => {});
   }
 
   function handleGenerateDraft() {
@@ -91,8 +97,9 @@ export default function CaseSettlementPage() {
 
   async function handleSend() {
     const question = chatInput.trim();
-    if (!question || !summary) return;
+    if (!question || !summary || chatSending) return;
     setChatInput('');
+    setChatSending(true);
 
     const target = {
       route: item!.masterData.destination,
@@ -113,22 +120,46 @@ export default function CaseSettlementPage() {
       : [];
     const delayRelatedNews = newsArticles.filter((n) => n.category === 'TCR' || n.category === '연운항').slice(0, 3);
 
-    const answer = answerDispute(question, {
+    const fallback = answerDispute(question, {
       quoteVerdictNarrative: verdict.narrative,
       causalNarratives,
       invoiceSummary: summary,
       delayRelatedNews,
     });
 
+    let answerText = fallback.text;
+    let answerEvidence = fallback.evidence;
+    try {
+      const result = await requestDisputeChat({
+        question,
+        history: (item!.disputeMessages ?? []).slice(-10).map((message) => ({ role: message.role === 'assistant' ? 'bot' : 'user', text: message.text })),
+        context: {
+          case: { id: item!.caseNumber, shipper: item!.shipperName, route: item!.route, price: item!.price, currency: 'USD', masterData: item!.masterData },
+          quoteVerdict: { narrative: verdict.narrative }, marketAnalysis: { explanations: causalNarratives },
+          contractClauses: item!.contract?.clauses ?? [],
+          documents: (item!.documents ?? []).map((document) => ({ type: document.documentType, fileName: document.fileName, status: 'done', extraction: document.extractedSnapshot })),
+          costLedger: item!.costLedger.map((line) => ({ stageName: line.stageName, costItem: line.stageName, contractAmount: line.contractAmount, currency: line.currency })),
+          invoiceComparison: { contractAmount: summary.contractTotal, invoiceTotal: summary.invoiceTotal, diff: summary.totalDiff, lineItems: summary.comparison },
+          changeHistory: item!.masterData.changeHistory,
+        },
+      });
+      answerText = result.answer;
+      answerEvidence = [`LLM model: ${result.model}`];
+    } catch {
+      answerEvidence = [...fallback.evidence, 'LLM unavailable; rule-based fallback used'];
+    } finally {
+      setChatSending(false);
+    }
+
     const now = new Date().toISOString();
     const userMsg = { id: crypto.randomUUID(), role: 'user' as const, text: question, evidence: [], createdAt: now };
-    const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, text: answer.text, evidence: answer.evidence, createdAt: now };
+    const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, text: answerText, evidence: answerEvidence, createdAt: now };
 
     setCasesAndPersist((prev) =>
       prev.map((c) => (c.id === item!.id ? { ...c, disputeMessages: [...(c.disputeMessages ?? []), userMsg, assistantMsg] } : c))
     );
     await insertDisputeChatMessage(item!.id, { role: 'user', content: question, evidenceRef: {} }).catch(() => {});
-    await insertDisputeChatMessage(item!.id, { role: 'assistant', content: answer.text, evidenceRef: { sources: answer.evidence } }).catch(() => {});
+    await insertDisputeChatMessage(item!.id, { role: 'assistant', content: answerText, evidenceRef: { sources: answerEvidence } }).catch(() => {});
   }
 
   const problemRows = summary?.comparison.filter((r) => r.category !== 'match') ?? [];
@@ -318,7 +349,7 @@ export default function CaseSettlementPage() {
                 placeholder="예: 왜 이렇게 비싸요? / 차액이 얼마예요? / 왜 늦어져요?"
                 className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
               />
-              <button onClick={handleSend} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800">
+              <button disabled={chatSending} onClick={handleSend} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">
                 전송
               </button>
             </div>

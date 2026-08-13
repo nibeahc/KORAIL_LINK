@@ -8,7 +8,7 @@ import type { CaseItem } from './types';
  */
 export const initialCases: CaseItem[] = [
   {
-    id: 'case-almaty-001',
+    id: '7d7d2e98-f47c-4b7e-a61f-6f5cb1bb3bd1',
     caseNumber: 'KL-2026-0001',
     shipperName: '대한무역',
     cargoType: '건설중장비 부품',
@@ -37,7 +37,7 @@ export const initialCases: CaseItem[] = [
     ],
   },
   {
-    id: 'case-xian-002',
+    id: 'c62f4b47-b10f-4f4b-b960-ffaf664a1b5b',
     caseNumber: 'KL-2026-0002',
     shipperName: '동북물산',
     cargoType: '전자부품',
@@ -65,7 +65,7 @@ export const initialCases: CaseItem[] = [
     ],
   },
   {
-    id: 'case-tashkent-003',
+    id: '5bc43f75-2fb8-4b58-8f5a-9b1c58f71109',
     caseNumber: 'KL-2026-0003',
     shipperName: '한중섬유',
     cargoType: '방직 원단',

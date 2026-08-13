@@ -13,6 +13,7 @@ import {
   CASE_FIELD_DEFS,
   type FieldVerdict,
 } from '../../../../lib/documentEngine';
+import { decideCaseFieldChange, updateDocumentExtractionResult, uploadCaseDocument } from '../../../../lib/supabase';
 
 const DOC_TYPES: DocumentType[] = ['contract', 'packing_list', 'waybill', 'bl'];
 
@@ -28,6 +29,9 @@ export default function CaseDocumentsPage() {
   const item = cases.find((c) => c.id === params.id);
   const [selectedType, setSelectedType] = useState<DocumentType>('packing_list');
   const [fileName, setFileName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showWaybillDraft, setShowWaybillDraft] = useState(false);
 
   if (!item) {
@@ -40,19 +44,23 @@ export default function CaseDocumentsPage() {
 
   const documents = item.documents ?? [];
 
-  function handleUpload() {
-    const name = fileName.trim() || `${DOCUMENT_TYPE_LABEL[selectedType]}.pdf`;
+  async function handleUpload() {
+    if (!selectedFile || uploading) return;
+    setUploading(true);
+    setError(null);
+    const name = fileName.trim() || selectedFile.name;
     const snapshot = simulateExtraction(selectedType, item!.masterData);
-    const doc: CaseDocument = {
-      id: crypto.randomUUID(),
-      documentType: selectedType,
-      fileName: name,
-      uploadedAt: new Date().toISOString(),
-      extractedSnapshot: snapshot,
-      resolutions: {},
-    };
-    setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, documents: [...(c.documents ?? []), doc] } : c)));
-    setFileName('');
+    try {
+      const uploaded = await uploadCaseDocument({ caseId: item!.id, documentType: selectedType, file: selectedFile, extractionResult: { snapshot, resolutions: {} } });
+      const doc: CaseDocument = { id: uploaded.id, documentType: selectedType, fileName: name, uploadedAt: new Date().toISOString(), extractedSnapshot: snapshot, resolutions: {} };
+      setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, documents: [...(c.documents ?? []), doc] } : c)));
+      setFileName('');
+      setSelectedFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Document upload failed.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   function handleGenerateWaybillDraft() {
@@ -70,6 +78,16 @@ export default function CaseDocumentsPage() {
   }
 
   function resolveField(doc: CaseDocument, field: string, action: 'keep_current' | 'apply_document' | 'confirm_later') {
+    const previousValue = (item!.masterData as unknown as Record<string, unknown>)[field];
+    const proposedValue = doc.extractedSnapshot[field];
+    void decideCaseFieldChange({
+      caseId: item!.id,
+      documentId: doc.id,
+      fieldName: field,
+      previousValue,
+      proposedValue,
+      decision: action === 'confirm_later' ? 'pending' : action,
+    }).catch((err) => setError(err instanceof Error ? err.message : 'Could not save the field decision.'));
     setCasesAndPersist((prev) =>
       prev.map((c) => {
         if (c.id !== item!.id) return c;
@@ -101,6 +119,7 @@ export default function CaseDocumentsPage() {
         return { ...c, masterData, documents: nextDocuments };
       })
     );
+    void updateDocumentExtractionResult(doc.id, { snapshot: doc.extractedSnapshot, resolutions: { ...doc.resolutions, [field]: action } }).catch(() => {});
   }
 
   const waybillDraft = buildWaybillDraft(item.masterData);
@@ -126,8 +145,8 @@ export default function CaseDocumentsPage() {
               </option>
             ))}
           </select>
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')} className="text-sm" />
-          <button onClick={handleUpload} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800">
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => { const file = e.target.files?.[0] ?? null; setSelectedFile(file); setFileName(file?.name ?? ''); }} className="text-sm" />
+          <button disabled={!selectedFile || uploading} onClick={handleUpload} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
             업로드
           </button>
         </div>

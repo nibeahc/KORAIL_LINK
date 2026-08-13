@@ -214,3 +214,139 @@ export async function insertCaseStatusHistory(
   });
   if (error) throw error;
 }
+
+export async function uploadCaseDocument(input: {
+  caseId: string;
+  documentType: string;
+  file: File;
+  extractionResult: Record<string, unknown>;
+}): Promise<{ id: string; storagePath: string }> {
+  const supabase = getSupabaseClient();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) throw new Error('Sign in is required to upload a document.');
+
+  const safeName = input.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${auth.user.id}/${input.caseId}/${crypto.randomUUID()}-${safeName}`;
+  const { error: uploadError } = await supabase.storage.from('case-documents').upload(storagePath, input.file, {
+    contentType: input.file.type || undefined,
+    upsert: false,
+  });
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase
+    .from('documents')
+    .insert({
+      case_id: input.caseId,
+      uploaded_by: auth.user.id,
+      document_type: input.documentType,
+      file_name: input.file.name,
+      storage_path: storagePath,
+      mime_type: input.file.type || null,
+      file_size: input.file.size,
+      extraction_status: 'completed',
+      extraction_result: input.extractionResult,
+    })
+    .select('id, storage_path')
+    .single();
+  if (error) {
+    await supabase.storage.from('case-documents').remove([storagePath]);
+    throw error;
+  }
+  return { id: data.id, storagePath: data.storage_path };
+}
+
+export async function updateDocumentExtractionResult(documentId: string, extractionResult: Record<string, unknown>) {
+  const { error } = await getSupabaseClient()
+    .from('documents')
+    .update({ extraction_result: extractionResult })
+    .eq('id', documentId);
+  if (error) throw error;
+}
+
+export type ExternalCostLedgerItem = {
+  stageId: string;
+  stageName: string;
+  mode: string;
+  costItem: string;
+  quotedAmount: number;
+  contractAmount: number;
+  currency: string;
+  sourceType: 'quote_document' | 'manual' | 'contract' | 'legacy_fallback';
+  sourceDocumentId?: string;
+};
+
+async function resolveCaseId(caseRef: string): Promise<string> {
+  const { data, error } = await getSupabaseClient().from('cases').select('id').or(`id.eq.${caseRef},case_number.eq.${caseRef}`).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Case를 찾을 수 없습니다.');
+  return data.id;
+}
+
+export async function replaceCostLedger(caseRef: string, items: ExternalCostLedgerItem[]): Promise<void> {
+  const caseId = await resolveCaseId(caseRef);
+  const supabase = getSupabaseClient();
+  const { error: removeError } = await supabase.from('cost_ledger_items').delete().eq('case_id', caseId);
+  if (removeError) throw removeError;
+  if (items.length === 0) return;
+  const { error } = await supabase.from('cost_ledger_items').insert(
+    items.map((item) => ({
+      case_id: caseId, stage_id: item.stageId, stage_name: item.stageName, mode: item.mode,
+      cost_item: item.costItem, quoted_amount: item.quotedAmount, contract_amount: item.contractAmount,
+      currency: item.currency, source_type: item.sourceType, source_document_id: item.sourceDocumentId ?? null,
+    }))
+  );
+  if (error) throw error;
+}
+
+export async function listCostLedger(caseRef: string): Promise<ExternalCostLedgerItem[]> {
+  const caseId = await resolveCaseId(caseRef);
+  const { data, error } = await getSupabaseClient().from('cost_ledger_items').select('*').eq('case_id', caseId).order('created_at');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    stageId: row.stage_id, stageName: row.stage_name, mode: row.mode, costItem: row.cost_item,
+    quotedAmount: Number(row.quoted_amount), contractAmount: Number(row.contract_amount), currency: row.currency,
+    sourceType: row.source_type, sourceDocumentId: row.source_document_id ?? undefined,
+  }));
+}
+
+export async function saveInvoiceComparison(input: {
+  caseId: string; documentId?: string; lineItems: { category: string; label: string; amount: number; currency: string }[];
+}): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error: removeError } = await supabase.from('invoice_line_items').delete().eq('case_id', input.caseId);
+  if (removeError) throw removeError;
+  if (!input.lineItems.length) return;
+  const { data: lines, error } = await supabase.from('invoice_line_items').insert(input.lineItems.map((line) => ({
+    case_id: input.caseId, document_id: input.documentId ?? null, category: line.category, label: line.label,
+    amount: line.amount, currency: line.currency,
+  }))).select('id, label, amount');
+  if (error) throw error;
+  const ledger = await listCostLedger(input.caseId);
+  const matches = (lines ?? []).map((line) => {
+    const item = ledger.find((candidate) => candidate.costItem === line.label || candidate.stageName === line.label);
+    return { invoice_line_item_id: line.id, cost_ledger_item_id: null, status: item ? (Number(line.amount) === item.contractAmount ? 'matched' : 'amount_mismatch') : 'new_item', difference: item ? Number(line.amount) - item.contractAmount : null };
+  });
+  if (matches.length) {
+    const { error: matchError } = await supabase.from('invoice_ledger_matches').insert(matches);
+    if (matchError) throw matchError;
+  }
+}
+
+export async function decideCaseFieldChange(input: {
+  caseId: string; documentId?: string; fieldName: string; previousValue: unknown; proposedValue: unknown;
+  decision: 'pending' | 'keep_current' | 'apply_document';
+}): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('case_field_change_history').insert({
+    case_id: input.caseId, document_id: input.documentId ?? null, field_name: input.fieldName,
+    previous_value: input.previousValue, proposed_value: input.proposedValue, decision: input.decision,
+    decided_at: input.decision === 'pending' ? null : new Date().toISOString(),
+  });
+  if (error) throw error;
+  if (input.decision === 'apply_document') {
+    const { data: current, error: readError } = await supabase.from('cases').select('master_data').eq('id', input.caseId).single();
+    if (readError) throw readError;
+    const { error: updateError } = await supabase.from('cases').update({ master_data: { ...(current.master_data ?? {}), [input.fieldName]: input.proposedValue } }).eq('id', input.caseId);
+    if (updateError) throw updateError;
+  }
+}

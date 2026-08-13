@@ -4,7 +4,7 @@ on conflict (id) do nothing;
 
 create policy "case documents read" on storage.objects
 for select to authenticated
-using (bucket_id = 'case-documents');
+using (bucket_id = 'case-documents' and (storage.foldername(name))[1] = auth.uid()::text);
 
 create policy "case documents upload" on storage.objects
 for insert to authenticated
