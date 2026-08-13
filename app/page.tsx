@@ -203,7 +203,7 @@ export default function Home() {
   const displayName = '사용자';
   return <div className={`app${navCollapsed?' nav-collapsed':''}`}>
     <Sidebar path={sidebarPath} go={go} needsAttention={needsAttention} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName}/>
-    <div className="stage"><Topbar collapsed={navCollapsed} toggleNav={()=>setNavCollapsed(v=>!v)}/>
+    <div className="stage"><Topbar collapsed={navCollapsed} toggleNav={()=>setNavCollapsed(v=>!v)} go={go}/>
       <main>
         {pathBase==="/" && <Dashboard cases={cases} go={go} displayName={displayName}/>}
         {pathBase==="/cases" && <CaseList cases={cases} go={go}/>}
@@ -245,9 +245,9 @@ function Sidebar({path,go,needsAttention,contractCount,documentCount,settlementC
 }
 
 // 능동적 알림 우선 원칙(4장) — 상단 환율 배지도 목업이 아니라 실제 시계열의 최신값·전일 대비 변동을 그대로 노출한다.
-function Topbar({collapsed,toggleNav}:{collapsed:boolean;toggleNav:()=>void}){
+function Topbar({collapsed,toggleNav,go}:{collapsed:boolean;toggleNav:()=>void;go:(p:string)=>void}){
  const usdKrw=detectAnomaly(marketSeries.usdKrw);
- return <header className="topbar"><div className="top-brand"><button type="button" aria-label={collapsed?'사이드 메뉴 펼치기':'사이드 메뉴 접기'} aria-expanded={!collapsed} onClick={toggleNav}>☰</button><img className="korail-logo" src="/korail-link-logo.svg" alt="KORAIL LINK"/></div><div className="top-actions"><div className="fx">USD/KRW <b>{(usdKrw?.latestValue??0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</b> <span>{(usdKrw?.changePct??0)>=0?'+':''}{(usdKrw?.changePct??0).toFixed(1)}%</span></div><span className="date">2026년 8월 10일 월요일</span></div></header>
+ return <header className="topbar"><div className="top-brand"><button type="button" aria-label={collapsed?'사이드 메뉴 펼치기':'사이드 메뉴 접기'} aria-expanded={!collapsed} onClick={toggleNav}>☰</button><button type="button" className="logo-button" aria-label="홈으로 이동" onClick={()=>go('/')}><img className="korail-logo" src="/korail-link-logo.svg" alt="KORAIL LINK"/></button></div><div className="top-actions"><div className="fx">USD/KRW <b>{(usdKrw?.latestValue??0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</b> <span>{(usdKrw?.changePct??0)>=0?'+':''}{(usdKrw?.changePct??0).toFixed(1)}%</span></div><span className="date">2026년 8월 10일 월요일</span></div></header>
 }
 
 function PageTitle({eyebrow,title,desc,action}:{eyebrow?:string,title:string,desc?:string,action?:React.ReactNode}){return <div className="page-title"><div>{eyebrow&&<span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{desc&&<p>{desc}</p>}</div>{action}</div>}
@@ -389,6 +389,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
   <div className="stat-mini"><span>평균 리드타임(등록→출발)</span><b>{avgLeadDays}<em>일</em></b></div>
  </div>
  <h2 className="dashboard-label spaced">KORAIL LINK 종합 지수</h2>
+ <p className="dashboard-label-desc">각 노선별로 과거 견적 대비 얼마나 변동했는지(σ)를 먼저 계산한 뒤, 그 변동 정도만 평균낸 자체 지수예요. 서로 다른 노선의 Case들도 각자 노선 대비 위치로 함께 비교할 수 있습니다.</p>
  <section className="card chart-card index-card"><div className="legend index-legend"><span><i className="legend-band"/>정상범위(±1σ)</span><span><i className="legend-dot" style={{background:'#1f8a5b'}}/>정상</span><span><i className="legend-dot" style={{background:'#d78516'}}/>다소 높음</span><span><i className="legend-dot" style={{background:'#d93d42'}}/>높음</span></div><MarketIndexChart monthly={marketIndex} todayPoints={todayPoints}/></section>
  <section className="card active-work"><div className="card-head"><h2>진행 중인 업무</h2><button className="text-btn" onClick={()=>go('/cases')}>전체 업무 보기 <Icon name="arrow"/></button></div><div className="active-work-grid"><div className="work-donut"><DonutChart segments={statusSegments} size={132} thickness={22}/><div className="donut-legend">{statusSegments.filter(s=>s.value>0).map(s=><div className="donut-legend-row" key={s.label}><i style={{background:s.color}}/><span>{s.label}</span><b>{s.value}</b></div>)}</div></div><div className="work-table" aria-label={`진행 중인 업무 ${cases.length}건`}><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>견적</th><th>상태</th><th>등록일</th></tr></thead><tbody>{cases.map(c=><tr key={c.id} onClick={()=>go(caseHref(c.id,c.status))}><td>{c.id}</td><td><b>{c.shipper}</b><small>{c.item} · {c.container}</small></td><td>{c.route}</td><td><b>{money(c.price)}</b></td><td><Badge tone={statusClass(c.status)}>{c.status}</Badge></td><td>{c.date}</td></tr>)}</tbody></table></div></div></section>
  <section className="card briefing figma-briefing"><div className="card-head"><h2>오늘의 국제물류 브리핑</h2><button className="text-btn" onClick={()=>go('/search')}>전체 정보 보기 <Icon name="arrow"/></button></div>
