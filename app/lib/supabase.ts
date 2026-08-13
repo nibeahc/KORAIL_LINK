@@ -156,7 +156,7 @@ export async function saveTaxInvoice(input: {
 export async function saveDisputeMessage(input: { caseId: string; role: 'user' | 'assistant' | 'system'; content: string; context?: unknown }) {
   const { data: userData } = await supabase.auth.getUser();
   const { data, error } = await supabase.from('dispute_chat_messages').insert({
-    case_id: await resolveCaseId(input.caseId), user_id: userData.user?.id, role: input.role, content: input.content, context: input.context ?? {},
+    case_id: await resolveCaseId(input.caseId), user_id: userData.user?.id, role: input.role, content: input.content, evidence_ref: input.context ?? {},
   }).select().single();
   if (error) throw error;
   return data;

@@ -310,25 +310,25 @@ const toneColor=(tone:string)=>tone==='green'?'#1f8a5b':tone==='amber'?'#d78516'
 // 오른쪽에 별도 구간으로 분리해 점으로 찍는다. 시계열(과거)과 스냅샷(오늘)을 같은 선 위에
 // 잇지 않도록 "오늘" 구간을 세로선으로 분리한 것이 포인트.
 function MarketIndexChart({monthly,todayPoints}:{monthly:{month:string;avgZ:number}[];todayPoints:{id:string;z:number;tone:string}[]}){
- const W=935,H=242,labelY=278,pad=14;
+ const W=560,H=150,pad=14;
  const allZ=[...monthly.map(m=>m.avgZ),...todayPoints.map(p=>p.z),1,-1];
  const maxAbs=Math.max(...allZ.map(Math.abs),1.5);
  const y=(z:number)=>H/2-(z/maxAbs)*(H/2-pad);
  const histW=W*0.6,todayW=W-histW-24;
- const xOf=(i:number)=>monthly.length>1?(i/(monthly.length-1))*(histW-34)+17:histW/2;
+ const xOf=(i:number)=>monthly.length>1?(i/(monthly.length-1))*(histW-20)+10:histW/2;
  const linePts=monthly.map((m,i)=>`${xOf(i).toFixed(1)},${y(m.avgZ).toFixed(1)}`).join(' ');
  const areaPts=monthly.length?`${xOf(0).toFixed(1)},${y(0).toFixed(1)} ${linePts} ${xOf(monthly.length-1).toFixed(1)},${y(0).toFixed(1)}`:'';
- const todayX=(i:number)=>histW+34+(todayPoints.length>1?(i/(todayPoints.length-1))*(todayW-50):todayW/2);
- return <svg viewBox={`0 0 ${W} 281`} className="index-chart" aria-label="KORAIL LINK 종합 지수 추이">
+ const todayX=(i:number)=>histW+24+(todayPoints.length>1?(i/(todayPoints.length-1))*(todayW-20):todayW/2);
+ return <svg viewBox={`0 0 ${W} ${H+18}`} className="index-chart" aria-label="KORAIL LINK 종합 지수 추이">
   <rect x={0} y={y(1)} width={W} height={Math.max(y(-1)-y(1),1)} fill="#eef4fd" opacity={0.6}/>
   <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="#dde3ea" strokeDasharray="3 3"/>
   <line x1={histW+10} x2={histW+10} y1={pad} y2={H-pad} stroke="#e5eaf1"/>
   {monthly.length>0&&<polygon points={areaPts} fill="#c7d9f5" opacity={0.5}/>}
-  {monthly.length>0&&<polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={3}/>} 
-  {monthly.map((m,i)=><circle key={m.month} cx={xOf(i)} cy={y(m.avgZ)} r={5} fill="#2c4870"/>)}
-  {todayPoints.map((p,i)=><circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={7.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={2.5}/>)}
-  {monthly.map((m,i)=><text key={m.month} x={xOf(i)} y={labelY} textAnchor="middle" className="index-x-label">{Number(m.month.slice(5))}월</text>)}
-  <text x={histW+24+todayW/2} y={labelY} textAnchor="middle" className="index-x-label index-today-label">오늘</text>
+ {monthly.length>0&&<polyline points={linePts} fill="none" stroke="#2c4870" strokeWidth={2}/>} 
+ {monthly.map((m,i)=><circle key={m.month} cx={xOf(i)} cy={y(m.avgZ)} r={3} fill="#2c4870"/>)}
+ {todayPoints.map((p,i)=><circle key={p.id} cx={todayX(i)} cy={y(p.z)} r={4.5} fill={toneColor(p.tone)} stroke="white" strokeWidth={1.5}/>)}
+ {monthly.map((m,i)=><text key={m.month} x={xOf(i)} y={H+13} textAnchor="middle" className="index-x-label">{Number(m.month.slice(5))}월</text>)}
+ <text x={histW+24+todayW/2} y={H+13} textAnchor="middle" className="index-x-label index-today-label">오늘</text>
  </svg>
 }
 
@@ -449,8 +449,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
   <div className="stat-mini"><span>평균 리드타임(등록→출발)</span><b>{avgLeadDays}<em>일</em></b></div>
  </div>
  <h2 className="dashboard-label spaced">KORAIL LINK 종합 지수</h2>
- <p className="dashboard-label-desc">각 노선별로 과거 견적 대비 얼마나 변동했는지를 먼저 계산한 뒤, 그 변동 정도만 평균낸 자체 지수예요. 서로 다른 노선의 Case들도 각자 노선 대비 위치로 함께 비교할 수 있습니다.</p>
- <section className="card chart-card index-card"><div className="legend index-legend"><span><i className="legend-band"/>정상범위(±1σ)</span><span><i className="legend-dot" style={{background:'#1f8a5b'}}/>정상</span><span><i className="legend-dot" style={{background:'#d78516'}}/>다소 높음</span><span><i className="legend-dot" style={{background:'#d93d42'}}/>높음</span></div><MarketIndexChart monthly={marketIndex} todayPoints={todayPoints}/></section>
+ <section className="card chart-card index-card"><MarketIndexChart monthly={marketIndex} todayPoints={todayPoints}/><div className="legend index-legend"><span><i className="legend-band"/>정상범위(±1σ)</span><span><i className="legend-dot" style={{background:'#1f8a5b'}}/>정상</span><span><i className="legend-dot" style={{background:'#d78516'}}/>다소 높음</span><span><i className="legend-dot" style={{background:'#d93d42'}}/>높음</span></div></section>
  <section className="card active-work"><div className="card-head"><h2>진행 중인 업무</h2><button className="text-btn" onClick={()=>go('/cases')}>전체 업무 보기 <Icon name="arrow"/></button></div><div className="active-work-grid"><div className="work-donut"><DonutChart segments={statusSegments} size={132} thickness={22}/><div className="donut-legend">{statusSegments.filter(s=>s.value>0).map(s=><div className="donut-legend-row" key={s.label}><i style={{background:s.color}}/><span>{s.label}</span><b>{s.value}</b></div>)}</div></div><div className="work-table" aria-label={`진행 중인 업무 ${cases.length}건`}><table><thead><tr><th>CASE 번호</th><th>화주 / 품목</th><th>노선</th><th>견적</th><th>상태</th><th>등록일</th></tr></thead><tbody>{cases.map(c=><tr key={c.id} onClick={()=>go(caseHref(c.id,c.status))}><td>{c.id}</td><td><b>{c.shipper}</b><small>{c.item} · {c.container}</small></td><td>{c.route}</td><td><b>{money(c.price)}</b></td><td><Badge tone={statusClass(c.status)}>{c.status}</Badge></td><td>{c.date}</td></tr>)}</tbody></table></div></div></section>
  <section className="card briefing figma-briefing"><div className="card-head"><h2>오늘의 국제물류 브리핑</h2><button className="text-btn" onClick={()=>go('/search')}>전체 정보 보기 <Icon name="arrow"/></button></div>
   <div className="brief-list">
@@ -462,11 +461,11 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
   </div>
  </section>
  <button className="chatbot" onClick={()=>setChatOpen(true)}><img src="/icons/chatbot-train.svg" alt="" aria-hidden/><span>챗봇</span></button>
- {chatOpen&&<HomeChatbot item={cases[0]} close={()=>setChatOpen(false)}/>} 
+ {chatOpen&&<HomeChatbot item={cases[0]} cases={cases} close={()=>setChatOpen(false)}/>} 
  {drawer&&<EvidenceDrawer state={drawer} close={()=>setDrawer(null)}/>}</div>
 }
 
-function HomeChatbot({item,close}:{item:CaseItem;close:()=>void}){
+function HomeChatbot({item,close,cases=[item]}:{item:CaseItem;close:()=>void;cases?:CaseItem[]}){
  const welcome='안녕하세요. KORAIL LINK AI 챗봇입니다. 운송 견적, 계약 및 정산 내역에 대해 궁금한 내용을 질문해 주세요.';
  const [messages,setMessages]=useState<ChatMessage[]>([{role:'bot',text:welcome}]);
  const [input,setInput]=useState('');
@@ -480,9 +479,11 @@ function HomeChatbot({item,close}:{item:CaseItem;close:()=>void}){
   setMessages(m=>[...m,{role:'user',text:question}]);
   setInput('');
   try{
-   const response=await fetch('/api/dispute-chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question,history:messages.slice(-6),context:{caseId:item.id,shipper:item.shipper,route:item.route,cargo:item.item,container:item.container,quoteAmount:item.price,weightTon:item.weight,validation:validation.verdict}})});
+   const response=await fetch('/api/dispute-chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question,history:messages.slice(-6),context:{caseId:item.id,shipper:item.shipper,route:item.route,cargo:item.item,container:item.container,quoteAmount:item.price,weightTon:item.weight,validation:validation.verdict,caseCatalog:cases.map(c=>({caseId:c.id,shipper:c.shipper,route:c.route,cargo:c.item,container:c.container,quoteAmount:c.price,status:c.status,weightTon:c.weight}))}})});
    const result=await response.json() as {answer?:string};
    if(!response.ok||!result.answer)throw new Error();
+   saveDisputeMessage({caseId:item.id,role:'user',content:question}).catch(()=>{});
+   saveDisputeMessage({caseId:item.id,role:'assistant',content:result.answer}).catch(()=>{});
    setMessages(m=>[...m,{role:'bot',text:result.answer!}]);
   }catch{
    setMessages(m=>[...m,{role:'bot',text:answerDispute(question,item,validation.verdict,buildPressure(validation),buildInvoiceComparison(item))}]);
@@ -595,7 +596,7 @@ function BasicInfoAutoFill(){
   {!generated?<button type="button" className="primary autofill-generate" disabled={!complete} onClick={()=>setGenerated(true)}><Icon name="spark"/> 기본 운송정보 자동 채우기</button>:<div className="basic-extract-result"><table><thead><tr><th>항목</th><th>추출 정보</th></tr></thead><tbody>{extracted.map(([key,value])=><tr key={key}><td>{key}</td><td>{value}</td></tr>)}</tbody></table><button type="button" className="primary apply-draft-button" onClick={()=>setOpen(false)}>이 정보로 기본 운송정보 채우기</button></div>}
  </div>;
 }
-function QuotePageChatbot(){const [open,setOpen]=useState(false);return <><button type="button" className="chatbot" onClick={()=>setOpen(true)}><img src="/icons/chatbot-train.svg" alt="" aria-hidden/><span>챗봇</span></button>{open&&<HomeChatbot item={initialCases[0]} close={()=>setOpen(false)}/>}</>}
+function QuotePageChatbot(){const [open,setOpen]=useState(false);return <><button type="button" className="chatbot" onClick={()=>setOpen(true)}><img src="/icons/chatbot-train.svg" alt="" aria-hidden/><span>챗봇</span></button>{open&&<HomeChatbot item={initialCases[0]} cases={initialCases} close={()=>setOpen(false)}/>}</>}
 function FormSection({n,title,desc,children}:{n:string,title:string,desc:string,children:React.ReactNode}){return <section className="form-section card"><header><span>{n}</span><div><h2>{title}</h2><p>{desc}</p></div></header>{n==='01'&&<BasicInfoAutoFill/>}{children}{n==='02'&&<QuotePageChatbot/>}</section>}
 
 
@@ -1020,7 +1021,7 @@ function GlobalSearch({cases,notify}:{cases:CaseItem[];notify:(m:string)=>void})
    {results.length===0&&caseResults.length===0&&<div className="card search-empty">검색 결과가 없습니다.</div>}
   </div>
   <button className="chatbot" onClick={()=>setChatOpen(true)}><img src="/icons/chatbot-train.svg" alt="" aria-hidden/><span>챗봇</span></button>
-  {chatOpen&&<HomeChatbot item={cases[0]} close={()=>setChatOpen(false)}/>} 
+ {chatOpen&&<HomeChatbot item={cases[0]} cases={cases} close={()=>setChatOpen(false)}/>}
   {drawer&&<EvidenceDrawer state={drawer} close={()=>setDrawer(null)}/>} 
  </div>;
 }
