@@ -6,7 +6,14 @@ import { useCases } from '../../../../lib/state';
 import type { InvoiceLineItem } from '../../../../lib/types';
 import { buildInvoiceDraft, buildInvoiceSummary, MATCH_CATEGORY_LABEL, type MatchCategory } from '../../../../lib/settlementEngine';
 import { buildTaxInvoice } from '../../../../lib/taxInvoiceEngine';
-import { insertTaxInvoice, saveInvoiceComparison } from '../../../../lib/supabase';
+import { answerDispute } from '../../../../lib/disputeChatEngine';
+import { requestDisputeChat } from '../../../../lib/disputeChatApi';
+import { validateQuote } from '../../../../lib/quoteEngine';
+import { historicalQuotes, SERIES, relevantIndicatorsForRoute } from '../../../../lib/marketData';
+import { buildCausalAnalysis } from '../../../../lib/causalAnalysis';
+import { getRoute } from '../../../../lib/routeData';
+import { newsArticles } from '../../../../lib/newsData';
+import { insertTaxInvoice, insertDisputeChatMessage, saveInvoiceComparison } from '../../../../lib/supabase';
 
 const CATEGORY_COLOR: Record<MatchCategory, string> = {
   match: 'bg-green-100 text-green-700',
@@ -22,6 +29,8 @@ export default function CaseSettlementPage() {
   const item = cases.find((c) => c.id === params.id);
 
   const [lines, setLines] = useState<InvoiceLineItem[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
 
   useEffect(() => {
     if (!item) return;
@@ -30,6 +39,7 @@ export default function CaseSettlementPage() {
   }, [item?.id]);
 
   const summary = useMemo(() => (item ? buildInvoiceSummary(item.costLedger, lines) : null), [item, lines]);
+  const route = useMemo(() => (item ? getRoute(item.masterData.destination) : undefined), [item]);
 
   if (!item) {
     return (
@@ -83,6 +93,71 @@ export default function CaseSettlementPage() {
     const invoice = buildTaxInvoice(item!.masterData.shipperName, summary.invoiceTotal);
     setCasesAndPersist((prev) => prev.map((c) => (c.id === item!.id ? { ...c, taxInvoices: [...(c.taxInvoices ?? []), invoice] } : c)));
     await insertTaxInvoice(item!.id, invoice).catch(() => {});
+  }
+
+  async function handleSend() {
+    const question = chatInput.trim();
+    if (!question || !summary || chatSending) return;
+    setChatInput('');
+    setChatSending(true);
+
+    const target = {
+      route: item!.masterData.destination,
+      containerType: item!.masterData.containerType,
+      cargoType: item!.masterData.cargoType,
+      shipmentDate: item!.masterData.shipmentDate,
+    };
+    const verdict = validateQuote(
+      item!.costLedger.reduce((s, l) => s + l.contractAmount, 0),
+      target,
+      historicalQuotes
+    );
+    const causalNarratives = route
+      ? relevantIndicatorsForRoute(route)
+          .map((ind) => buildCausalAnalysis(ind, SERIES[ind]))
+          .filter((a) => a.isAnomaly)
+          .map((a) => a.narrative)
+      : [];
+    const delayRelatedNews = newsArticles.filter((n) => n.category === 'TCR' || n.category === '연운항').slice(0, 3);
+
+    const fallback = answerDispute(question, {
+      quoteVerdictNarrative: verdict.narrative,
+      causalNarratives,
+      invoiceSummary: summary,
+      delayRelatedNews,
+    });
+
+    let answerText = fallback.text;
+    let answerEvidence = fallback.evidence;
+    try {
+      const result = await requestDisputeChat({
+        question,
+        history: (item!.disputeMessages ?? []).slice(-10).map((m) => ({ role: m.role === 'assistant' ? 'bot' : 'user', text: m.text })),
+        context: {
+          scope: 'settlement',
+          case: { id: item!.caseNumber, shipper: item!.shipperName, route: item!.route, price: item!.price, currency: 'USD' },
+          quoteVerdict: { narrative: verdict.narrative },
+          marketAnalysis: { explanations: causalNarratives },
+          invoiceComparison: { contractAmount: summary.contractTotal, invoiceTotal: summary.invoiceTotal, diff: summary.totalDiff, lineItems: summary.comparison },
+        },
+      });
+      answerText = result.answer;
+      answerEvidence = [`LLM model: ${result.model}`];
+    } catch {
+      answerEvidence = [...fallback.evidence, 'LLM unavailable; rule-based fallback used'];
+    } finally {
+      setChatSending(false);
+    }
+
+    const now = new Date().toISOString();
+    const userMsg = { id: crypto.randomUUID(), role: 'user' as const, text: question, evidence: [], createdAt: now };
+    const assistantMsg = { id: crypto.randomUUID(), role: 'assistant' as const, text: answerText, evidence: answerEvidence, createdAt: now };
+
+    setCasesAndPersist((prev) =>
+      prev.map((c) => (c.id === item!.id ? { ...c, disputeMessages: [...(c.disputeMessages ?? []), userMsg, assistantMsg] } : c))
+    );
+    await insertDisputeChatMessage(item!.id, { role: 'user', content: question, evidenceRef: {} }).catch(() => {});
+    await insertDisputeChatMessage(item!.id, { role: 'assistant', content: answerText, evidenceRef: { sources: answerEvidence } }).catch(() => {});
   }
 
   const problemRows = summary?.comparison.filter((r) => r.category !== 'match') ?? [];
@@ -244,6 +319,40 @@ export default function CaseSettlementPage() {
               {(!item.taxInvoices || item.taxInvoices.length === 0) && (
                 <p className="text-sm text-neutral-400">아직 생성된 세금계산서가 없습니다.</p>
               )}
+            </div>
+          </section>
+
+          <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
+            <h2 className="text-sm font-medium text-neutral-700">정산 도우미</h2>
+            <p className="mt-1 text-xs text-neutral-400">
+              이 Case의 정산 차액·세금계산서를 바탕으로 답합니다. 견적·계약·문서 전반은 우측 하단의 KORAIL LINK 도우미에게 물어보세요.
+            </p>
+            <div className="mt-3 space-y-3">
+              {(item.disputeMessages ?? []).map((m) => (
+                <div key={m.id} className={m.role === 'user' ? 'text-right' : ''}>
+                  <div
+                    className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                      m.role === 'user' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-800'
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                  {m.evidence.length > 0 && <p className="mt-1 text-xs text-neutral-400">근거: {m.evidence.join(', ')}</p>}
+                </div>
+              ))}
+              {chatSending && <p className="text-xs text-neutral-400">답변 작성 중…</p>}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="예: 왜 이렇게 비싸요? / 차액이 얼마예요? / 왜 늦어져요?"
+                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+              />
+              <button disabled={chatSending} onClick={handleSend} className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50">
+                전송
+              </button>
             </div>
           </section>
         </>

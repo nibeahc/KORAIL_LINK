@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient, getCurrentUser } from '../lib/supabase';
 import { Sidebar } from '../components/Sidebar';
+import { AppAssistantWidget } from '../components/AppAssistantWidget';
 
 function isGuest(): boolean {
   return typeof window !== 'undefined' && sessionStorage.getItem('korail_guest') === '1';
@@ -47,6 +48,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-full flex-1">
       <Sidebar />
       <div className="flex-1 overflow-y-auto bg-neutral-50">{children}</div>
+      <AppAssistantWidget />
     </div>
   );
 }
