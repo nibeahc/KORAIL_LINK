@@ -150,40 +150,6 @@ export default function Home() {
     });
     return () => { active = false; };
   }, []);
-  useEffect(() => {
-    const onFileChange = async (event: Event) => {
-      const input = event.target as HTMLInputElement;
-      const file = input.files?.[0];
-      if (!file || !input.id.startsWith('upload-')) return;
-      const caseId = location.pathname.match(/\/cases\/([^/]+)/)?.[1];
-      if (!caseId) return;
-      const documentType = input.id.replace('upload-', '').replace('-settlement', '');
-      const apiDocumentType = documentType === 'Packing List' || documentType === 'Invoice'
-        ? 'packing_list'
-        : documentType === 'B/L' ? 'bl'
-        : documentType.includes('운송장') ? 'waybill' : 'contract';
-      const form = new FormData();
-      form.set('file', file);
-      form.set('documentType', apiDocumentType);
-      const extractionUrl = documentType === 'Invoice' ? '/api/invoices/extract' : '/api/documents/extract';
-      fetch(extractionUrl, { method: 'POST', body: form })
-        .then(async response => {
-          const result = await response.json() as { snapshot?: Record<string, string | null>; invoiceNumber?: string | null; lineItems?: Array<{ label: string; amount: number; currency: 'USD' }>; error?: string };
-          if (!response.ok || (documentType === 'Invoice' ? !result.lineItems : !result.snapshot)) throw new Error(result.error ?? 'OCR 추출에 실패했습니다.');
-          document.dispatchEvent(new CustomEvent('korail:document-ocr', { detail: { caseId: decodeURIComponent(caseId), documentType, fileName: file.name, snapshot: result.snapshot, invoiceLineItems: result.lineItems } }));
-        })
-        .catch(error => document.dispatchEvent(new CustomEvent('korail:document-ocr', { detail: { caseId: decodeURIComponent(caseId), documentType, fileName: file.name, error: error instanceof Error ? error.message : 'OCR 추출에 실패했습니다.' } })));
-      try {
-        const storagePath = await uploadCaseDocument(decodeURIComponent(caseId), file);
-        await saveDocumentRecord({ caseId: decodeURIComponent(caseId), file, documentType, storagePath });
-      } catch (error) {
-        console.error('문서 Storage 저장 실패:', error);
-        notify(isPermissionError(error) ? '로그인 권한이 없어 문서를 저장할 수 없습니다.' : '문서 업로드에 실패했습니다. 파일 형식과 Storage 정책을 확인해주세요.');
-      }
-    };
-    document.addEventListener('change', onFileChange, true);
-    return () => document.removeEventListener('change', onFileChange, true);
-  }, []);
   useEffect(()=>{const f=()=>setPathState(location.pathname+location.search);f();addEventListener("popstate",f);return()=>removeEventListener("popstate",f)},[]);
   useEffect(()=>{const openReference=(event:MouseEvent)=>{const target=event.target as Element|null;const card=target?.closest('.causal-analysis') as HTMLElement|null;if(!card)return;const rect=card.getBoundingClientRect();if(event.clientX<rect.right-210||event.clientY>rect.top+62)return;const referenceTab=[...document.querySelectorAll<HTMLButtonElement>('.figma-case-detail .tabs button')].find(button=>button.textContent?.trim()==='참고정보');referenceTab?.click();window.scrollTo({top:0,behavior:'smooth'})};document.addEventListener('click',openReference);return()=>document.removeEventListener('click',openReference)},[]);
   const go=(p:string)=>{history.pushState({},"",p);setPathState(p);scrollTo(0,0)};
@@ -638,10 +604,23 @@ const uploadDoc=async(type:DocumentType,file?:File|string)=>{
      const apiType:Partial<Record<DocumentType,string>>={'Packing List':'packing_list','Invoice':'packing_list'};
      const detectedType=apiType[type] ?? (type==='B/L'?'bl':type==='화물운송장'?'waybill':'contract');
      const form=new FormData();form.set('file',file);form.set('documentType',detectedType);
-     const response=await fetch('/api/documents/extract',{method:'POST',body:form});
-     const result=await response.json() as {snapshot?:Record<string,string|null>;error?:string};
-     if(!response.ok||!result.snapshot)throw new Error(result.error??'OCR 추출에 실패했습니다.');
-     setDocs(d=>({...d,[type]:{status:'done',fileName,snapshot:result.snapshot,mode:'ocr'}}));
+     const response=await fetch(type==='Invoice'?'/api/invoices/extract':'/api/documents/extract',{method:'POST',body:form});
+     const result=await response.json() as {snapshot?:Record<string,string|null>;lineItems?:Array<{label:string;amount:number;currency:'USD'}>;error?:string};
+     if(type==='Invoice'){
+       if(!response.ok||!result.lineItems?.length)throw new Error(result.error??'Invoice 항목 추출에 실패했습니다.');
+       setDocs(d=>({...d,[type]:{status:'done',fileName,invoiceLineItems:result.lineItems!.map(line=>({...line,isNew:false})),mode:'ocr'}}));
+       saveInvoiceReconciliation({caseId:item.id,items:result.lineItems}).catch(()=>{});
+     }else{
+       if(!response.ok||!result.snapshot)throw new Error(result.error??'OCR 추출에 실패했습니다.');
+       setDocs(d=>({...d,[type]:{status:'done',fileName,snapshot:result.snapshot,mode:'ocr'}}));
+     }
+     try {
+       const storagePath=await uploadCaseDocument(item.id,file);
+       await saveDocumentRecord({caseId:item.id,file,documentType:type,storagePath});
+     } catch (storageError) {
+       console.error('문서 Storage 저장 실패:',storageError);
+       notify(isPermissionError(storageError)?'문서 분석은 완료됐지만 DB 파일 저장 권한을 확인해주세요.':'문서 분석은 완료됐지만 DB 파일 저장에 실패했습니다. Storage 정책을 확인해주세요.');
+     }
    }
    notify(`${type} 문서에서 AI 추출을 완료했습니다.`);
  } catch(error) {
@@ -829,7 +808,7 @@ function DocumentCard({type,item,state,onUpload,routePath,featured=false}:{type:
  const checklistFailCount=extraction?.checklist?.filter(c=>!c.pass).length??0;
  const needsAttention=mismatchCount>0||checklistFailCount>0;
  return <section className={`card doc-card${featured?' doc-card-featured':''}`}><div className="doc-card-head"><div><b>{type}</b>{state.fileName&&<small>{state.fileName}</small>}</div>{state.status==='done'&&<Badge tone={needsAttention?'red':'green'}>{needsAttention?'확인 필요':'정보 반영됨'}</Badge>}</div>
- {state.status==='idle'&&<div className="doc-idle"><p className="doc-desc">{info.description}</p><div className="doc-fields-preview"><b>추출 예정 항목</b><div className="doc-chip-list">{info.expectedFields.map(f=><span className="doc-chip" key={f}>{f}</span>)}</div></div>{type==='화물운송장'?<><button type="button" className="primary doc-generate-btn" onClick={()=>onUpload(type,'AI 생성 초안')}><Icon name="spark"/> AI로 초안 생성</button><button type="button" className="doc-upload doc-upload-secondary" onClick={()=>fileInputRef.current?.click()}><Icon name="plus"/>이미 작성된 문서가 있다면 업로드</button></>:<button type="button" className="doc-upload" onClick={()=>fileInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button>}<input ref={fileInputRef} id={inputId} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.gif,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f.name);e.currentTarget.value=''}}/><small className="doc-format-note">{info.formats.join(' · ')}</small></div>}
+ {state.status==='idle'&&<div className="doc-idle"><p className="doc-desc">{info.description}</p><div className="doc-fields-preview"><b>추출 예정 항목</b><div className="doc-chip-list">{info.expectedFields.map(f=><span className="doc-chip" key={f}>{f}</span>)}</div></div>{type==='화물운송장'?<><button type="button" className="primary doc-generate-btn" onClick={()=>onUpload(type,'AI 생성 초안')}><Icon name="spark"/> AI로 초안 생성</button><button type="button" className="doc-upload doc-upload-secondary" onClick={()=>fileInputRef.current?.click()}><Icon name="plus"/>이미 작성된 문서가 있다면 업로드</button></>:<button type="button" className="doc-upload" onClick={()=>fileInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button>}<input ref={fileInputRef} id={inputId} type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.gif,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload(type,f);e.currentTarget.value=''}}/><small className="doc-format-note">{info.formats.join(' · ')}</small></div>}
  {state.status==='loading'&&<div className="doc-loading"><span className="spinner"/>{state.fileName==='AI 생성 초안'?'AI가 화물운송장 초안을 작성하고 있습니다...':'AI가 문서에서 정보를 추출하고 있습니다...'}</div>}
  {extraction&&<table className="doc-fields"><tbody>{extraction.fields.map(f=><tr key={f.label} className={f.status}><td>{f.label}</td><td>{f.extracted}</td><td><Badge tone={f.status==='match'?'green':f.status==='mismatch'?'red':'blue'}>{f.status==='match'?'반영됨':f.status==='mismatch'?'확인 필요':'참고용'}</Badge></td></tr>)}</tbody></table>}
  {extraction?.checklist&&<div className="doc-checklist"><b>통일규칙 체크리스트</b>{extraction.checklist.map(c=><div className={c.pass?'pass':'fail'} key={c.label}><span>{c.pass?'✓':'✕'}</span><div><b>{c.label}</b>{c.note&&<small>{c.note}</small>}</div></div>)}</div>}
@@ -890,7 +869,7 @@ function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseIte
   {!invoice&&<section className="card doc-card">
    <div className="doc-card-head"><div><b>Invoice 대조</b>{invoiceState.fileName&&<small>{invoiceState.fileName}</small>}</div></div>
    <p className="doc-desc">실제 포워더 Invoice가 도착하면 업로드해서 위 정산 내역서와 대조하세요.</p>
-   {invoiceState.status==='idle'&&<><button type="button" className="doc-upload" onClick={()=>invoiceInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button><input ref={invoiceInputRef} id="upload-invoice-settlement" type="file" hidden accept=".pdf,.png,.jpg,.jpeg,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f.name);e.currentTarget.value=''}}/><small className="doc-format-note">PDF · JPG · PNG</small></>}
+   {invoiceState.status==='idle'&&<><button type="button" className="doc-upload" onClick={()=>invoiceInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button><input ref={invoiceInputRef} id="upload-invoice-settlement" type="file" hidden accept=".pdf,.png,.jpg,.jpeg,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f);e.currentTarget.value=''}}/><small className="doc-format-note">PDF · JPG · PNG</small></>}
    {invoiceState.status==='loading'&&<div className="doc-loading"><span className="spinner"/>AI가 Invoice에서 청구내역을 추출하고 있습니다...</div>}
   </section>}
   {invoice&&<>
