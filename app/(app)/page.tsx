@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCases } from '../lib/state';
 import { CASE_STATUS_LABEL, type CaseStatus } from '../lib/types';
 import { buildCompositeIndex, SERIES, type IndicatorKey } from '../lib/marketData';
@@ -22,9 +22,12 @@ const STATUS_COLORS: Record<CaseStatus, string> = {
 
 const INDICATORS: IndicatorKey[] = ['usdKrw', 'cnyKrw', 'usdKzt', 'usdUzs', 'usdKgs', 'brent', 'kcci', 'kci'];
 
+type LiveNewsArticle = { id: string; title: string; summary: string; url: string; source: string; publishedAt: string; category: string };
+
 export default function DashboardPage() {
   const { cases } = useCases();
   const [drawer, setDrawer] = useState<CausalAnalysis | null>(null);
+  const [liveBriefing, setLiveBriefing] = useState<LiveNewsArticle[]>([]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<CaseStatus, number> = {
@@ -59,6 +62,13 @@ export default function DashboardPage() {
 
   const compositeIndex = useMemo(() => buildCompositeIndex(), []);
   const briefing = useMemo(() => thisWeekBriefingNews(6), []);
+
+  useEffect(() => {
+    fetch('/api/news')
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('News request failed'))))
+      .then((data: { articles?: LiveNewsArticle[] }) => setLiveBriefing(data.articles ?? []))
+      .catch(() => {});
+  }, []);
 
   function openDrawer(indicator: IndicatorKey) {
     setDrawer(buildCausalAnalysis(indicator, SERIES[indicator]));
@@ -124,11 +134,18 @@ export default function DashboardPage() {
         <h2 className="text-sm font-medium text-neutral-700">이번 주 시황 브리핑</h2>
         <p className="mt-1 text-xs text-neutral-400">정책·화차공급·지정학 이슈를 우선 표시합니다.</p>
         <ul className="mt-3 divide-y divide-neutral-100">
-          {briefing.map((n) => (
+          {(liveBriefing.length > 0 ? liveBriefing : briefing).map((n) => (
             <li key={n.id} className="py-2.5 text-sm">
               <span className="mr-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">{n.category}</span>
-              <span className="text-neutral-800">{n.title}</span>
-              <span className="ml-2 text-xs text-neutral-400">{n.publishedAt}</span>
+              {'url' in n ? (
+                <a href={n.url} target="_blank" rel="noreferrer" className="text-neutral-800 hover:underline">
+                  {n.title}
+                </a>
+              ) : (
+                <span className="text-neutral-800">{n.title}</span>
+              )}
+              <span className="ml-2 text-xs text-neutral-400">{new Date(n.publishedAt).toLocaleDateString('ko-KR')}</span>
+              {'source' in n && <span className="ml-2 text-xs text-neutral-400">{n.source}</span>}
             </li>
           ))}
         </ul>
