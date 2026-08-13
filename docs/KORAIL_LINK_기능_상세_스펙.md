@@ -1,10 +1,12 @@
 # KORAIL LINK 기능 상세 스펙
 
-> 작성일: 2026-08-12 최종 수정 (기존 기능 유지, Case Master Data·Cost Ledger·계약/문서/정산 연결 고도화 반영) → 2026-08-13 문서 통합(HANDOFF.md·웹 구현 변경사항 문서를 부록으로 흡수)
+> 작성일: 2026-08-12 최종 수정 (기존 기능 유지, Case Master Data·Cost Ledger·계약/문서/정산 연결 고도화 반영) → 2026-08-13 문서 통합(HANDOFF.md·웹 구현 변경사항 문서를 부록으로 흡수) → 2026-08-13 프론트엔드 전면 교체 반영(부록 B/C/D/E 갱신)
 > 목적: 각 기능이 실제로 어떤 공식·로직으로 동작하는지 구체적으로 서술하는 문서. 부록으로 이전 프로토타입의 기술 스택·코드 구조·구현 현황(실제 계산 vs 목업)·알려진 한계·설계 결정 히스토리, 그리고 5단계(Case 데이터 연결 고도화)의 구체적인 구현 가이드(우선순위·완료조건·통합테스트 시나리오)까지 포함한다.
 > → 서비스가 왜 필요하고 무엇이 다른지는 [KORAIL_LINK_서비스_개요.md](./KORAIL_LINK_서비스_개요.md), 이 스펙의 전제가 된 코레일 실사업 조사는 [코레일_국제복합운송_사업_배경_조사_2026-08-11.md](./코레일_국제복합운송_사업_배경_조사_2026-08-11.md), 외부 API·DB·인증 등 백엔드 연동 현황은 [KORAIL_LINK_백엔드_연동.md](./KORAIL_LINK_백엔드_연동.md) 참고.
 >
 > **문서 통합 안내(2026-08-13)**: 기존에 별도 파일이었던 `HANDOFF.md`(지금 코드 상태·실행 방법·기술스택·코드구조·구현현황·알려진한계·설계결정 히스토리)와 `KORAIL_LINK_웹_구현_변경사항.md`(5단계 구현 우선순위·완료조건·통합테스트 시나리오)는 이 문서 하단 부록 A~E로 내용 손실 없이 흡수됐다. 두 파일은 더 이상 별도로 존재하지 않는다.
+>
+> **⚠️ 2026-08-13 프론트엔드 전면 교체 안내.** 아래 기능 A/B의 판정 공식·로직 설명은 개념적으로 그대로 유효하다(구간별 원가 합산, σ 기반 검증, 문서 대조·승인 반영, Cost Ledger↔Invoice 매칭 등의 "설계"는 바뀌지 않았다). 다만 이날 프론트엔드 구현 코드 전체(`app/page.tsx`, `app/lib/*.ts`)를 별도로 공유받은 Figma 데모 코드로 통째로 교체하면서, **로그인 기능이 제거**됐고 **계약승인·Cost Ledger 확정 저장·문서 AI 추출결과 저장·Invoice 대조 저장·이의제기챗봇 LLM 호출 등 다수의 Supabase/API 연동이 화면에서 더 이상 호출되지 않는 상태(연결 끊김)**가 됐다. 아래 부록 B·C·D는 이 교체를 반영해 갱신했다 — 교체 이전 구현 상태를 참고하려면 git 이력(`282303d` 이전 커밋)을 확인할 것.
 
 ---
 
@@ -461,48 +463,57 @@ MVP에서는 현재 구간별 Cost Ledger 항목을 기준으로 매칭하고, B
 
 ---
 
-## 부록 B — 구현 현황: 실제 계산 vs 목업 (이전 프로토타입 기준)
+## 부록 B — 구현 현황: 실제 계산 vs 목업 (2026-08-13 프론트엔드 교체 이후 기준)
 
-> 원본: `HANDOFF.md`. 아래는 2026-08-12 시점 이전 프로토타입(vinext + Cloudflare Workers + Supabase, 부록 C 참고) 구현 기준 정보다. 처음부터 다시 만들 때 기술스택을 그대로 가져갈지 새로 고를지와 무관하게, 이 프로젝트에서 어떤 로직이 이미 검증됐고 어떤 부분이 여전히 목업인지 파악하는 데 참고한다.
+> 원본: `HANDOFF.md`. 2026-08-13 프론트엔드 전면 교체를 반영해 갱신했다. 교체 이전 상태(로그인 동작 등)는 git 이력(`282303d` 이전 커밋) 참고.
 
 **실제로 계산되는 것** (하드코딩 아님, Case/시장 데이터가 바뀌면 결과도 바뀜):
 
-- σ 기반 견적 적정성 판정, 가중 유사도 매칭, z-score 시황 이상탐지
-- 시황 인과분석 문장(어떤 뉴스가 이 변동과 관련 있는지 매칭)
-- **견적서 자동생성**: 구간별 원가 문서를 업로드하면(파일 내용은 안 읽음) 과거 유사 견적 중앙값을 노선의 실제 구간 구성(routeData.ts)에 맞춰 구간별로 쪼개 합산 — `quoteDraftEngine.ts`의 `splitCostByStages`를 계약 별첨·정산 초안과 공유해서 세 화면의 구간별 금액이 항상 일치함
-- 계약 특약 초안(노선·화주·포워더·금액 반영, TCR 노선은 SMGS 준수·궤간환적·정책변동 조항 3개가 추가되어 총 7개 — 비TCR 노선은 4개) + 계약 탭 "근거 조항 보기" 토글(SMGS 준수사항 5개 항목) + **별첨 1(구간별 운임 명세) 표** — 확정 견적금액(`item.price`)을 구간별로 쪼갠 것
-- **정산 내역서 초안** — Invoice 업로드를 기다리지 않고 계약금액 기준 구간별 내역을 먼저 보여줌. Invoice가 도착하면 그 초안과 대조하는 용도로 전환(대조 로직 자체는 기존과 동일)
-- 문서/Invoice 완전일치 대조 로직(표기 정규화 포함), SMGS 체크리스트. 화물운송장은 업로드뿐 아니라 "AI로 초안 생성" 버튼으로도 만들 수 있음(코레일이 발행 주체이므로)
-- 세금계산서 금액(국제운송용역 기준 영세율 기본 적용, 세액 0원 — 2026-08-12 갱신, 아래 [부록 E](#부록-e--설계-결정-히스토리-자주-헷갈리는-것) 참고), 이의제기 챗봇 답변(σ 판정·인과분석·Invoice 차액 근거를 그대로 인용)
-- 계절성(출발월 기준 캘린더 신호), 목적지 통화 3종(USD/KZT·USD/UZS·USD/KGS, 달러 기준 표기) 분리, KCCI(종합)·KCI(한중항로) 두 해상운임 지수 기반 대체수요 서술
-- 대시보드 시각화(Case 상태 도넛, 종합 지수 차트, KPI, 홈 상단 퀵액션 카드 3개의 대기 건수) — 전부 실제 집계 계산
-- **로그인(Supabase Auth)이 실제로 동작한다.** `/login`에서 이메일 로그인·회원가입을 하면 세션이 유지되고, 사이드바 하단 프로필과 홈 인사말이 로그인한 사용자의 실제 이름·이메일로 바뀐다. Case 등록·상태 변경·문서 업로드·계약 체결·세금계산서 발행·이의제기 채팅은 Supabase에도 함께 저장되지만 **best-effort다** — 저장이 실패해도(RLS·네트워크 등) 화면 상태는 그대로 반영되고 토스트로만 알린다. Case 목록은 DB가 비어 있거나 로그인 전이면 자동으로 기존 목업(`initialCases`)을 보여준다.
+- σ 기반 견적 적정성 판정, 가중 유사도 매칭, z-score 시황 이상탐지 — `app/lib/quoteEngine.ts`
+- 시황 인과분석 문장(어떤 뉴스가 이 변동과 관련 있는지 매칭) — `app/lib/causalAnalysis.ts`
+- **견적서 자동생성**: 구간별 원가 문서를 업로드하면(파일 내용은 안 읽음) 과거 유사 견적 중앙값을 노선의 실제 구간 구성(`routeData.ts`)에 맞춰 구간별로 쪼개 합산 — `quoteDraftEngine.ts`의 `splitCostByStages`를 계약 별첨·정산 초안과 공유해서 세 화면의 구간별 금액이 항상 일치함
+- 계약 특약 초안(노선·화주·금액 반영), 계약 탭 "근거 조항 보기" 토글(SMGS 준수사항), 별첨 1(구간별 운임 명세) 표 — `contractEngine.ts`
+- 정산 내역서 초안 — Invoice 업로드를 기다리지 않고 계약금액 기준 구간별 내역을 먼저 보여줌
+- 문서/Invoice 완전일치 대조 로직(표기 정규화 포함), SMGS 체크리스트 — `documentEngine.ts`. 화물운송장은 업로드뿐 아니라 "AI로 초안 생성" 버튼으로도 만들 수 있음
+- 세금계산서 금액 계산(영세율 기본 적용), 이의제기 챗봇 답변(σ 판정·인과분석·Invoice 차액 근거를 규칙 기반으로 인용) — `taxInvoiceEngine.ts`, `disputeChatEngine.ts`
+- 계절성(출발월 기준 캘린더 신호), 대시보드 시각화(Case 상태 도넛, 종합 지수 차트, KPI, 홈 상단 퀵액션 카드 대기 건수) — 전부 실제 집계 계산
+- **Case 조회·생성·상태변경, 문서 업로드, 계약/세금계산서/이의제기 메시지 저장은 화면에서 Supabase 호출을 시도한다** (`app/lib/supabase.ts`의 `listCases`/`createCase`/`updateCaseStatus`/`uploadCaseDocument`/`saveDocumentRecord`/`saveContract`/`saveTaxInvoice`/`saveDisputeMessage`). 다만 **로그인이 없어 인증 세션 없이 호출되므로, RLS 정책에 따라 실패할 수 있다** — 실패해도 화면 상태는 로컬로 그대로 반영되고 저장 자체는 확인되지 않은 best-effort다.
 
-**목업/시뮬레이션인 것**:
+**목업/시뮬레이션인 것 (교체 이전과 동일)**:
 
 - **문서 업로드는 실제 파일을 읽지 않는다.** 업로드된 파일명과 무관하게, Case 데이터를 바탕으로 "AI가 추출했다면 이랬을 것"이라는 결정론적 결과를 생성한다. 같은 Case면 어떤 파일을 올려도 결과가 같다.
 - 뉴스·시장 시계열 데이터는 하드코딩된 배열이다(실 API 연동 없음).
-- 과거 유사 견적 풀(`historicalQuotes`, 33건)도 하드코딩이다(코레일 실제 계약 이력 아님).
-- **알림(Topbar 벨 아이콘)은 UI만 있고 실제로 밀어주는 로직이 없다.** 대신 대시보드 홈 화면("오늘의 업무", 브리핑 리스트)이 진입 즉시 확인 필요 항목을 보여주는 방식으로 대체했다.
-- **전자서명은 상태 전환(요청→서명 완료)만 시뮬레이션한다.** 실제 전자서명 SDK(모두싸인·docusign 등) 연동이 아니다.
-- **세금계산서는 국세청 홈택스 연동이 아니라 화면 미리보기다.** 사업자번호도 상호명 기반 목업 해시로 생성한다.
+- 과거 유사 견적 풀(`historicalQuotes`)도 하드코딩이다(코레일 실제 계약 이력 아님).
+- **알림(Topbar)은 UI만 있고 실제로 밀어주는 로직이 없다.** 대신 대시보드 홈 화면("오늘의 업무", 브리핑 리스트)이 진입 즉시 확인 필요 항목을 보여주는 방식으로 대체했다.
+- **전자서명은 상태 전환(요청→서명 완료)만 시뮬레이션한다.** 실제 전자서명 SDK 연동이 아니다.
+- **세금계산서는 국세청 홈택스 연동이 아니라 화면 미리보기다.**
 - **이의제기 챗봇은 실시간 LLM 호출이 아니라 키워드 매칭 규칙 기반이다.** 매칭 실패 시 "담당자에게 문의해주세요"로 답한다.
 
-> 실제 AI 문서 추출(LLM 연동)을 붙이는 구체적인 절차는 [KORAIL_LINK_백엔드_연동.md](./KORAIL_LINK_백엔드_연동.md) 5번 항목에 정리되어 있다.
+**2026-08-13 프론트엔드 교체로 새로 연결이 끊긴 것 (교체 이전에는 동작했음)**:
+
+- **로그인(Supabase Auth 이메일 로그인·회원가입)이 완전히 제거됐다.** `/login` 라우트 자체가 없다. 사이드바 프로필은 항상 "사용자"로 고정 표시된다.
+- **계약 승인/결재 이력, 전자서명 데이터의 DB 저장** — `contract_approvals` 테이블은 있지만 이 테이블을 다루는 함수가 새 `supabase.ts`에 없다. 전자서명은 화면 안에서만 상태가 돌고 새로고침하면 사라진다.
+- **계약 확정 시 Cost Ledger(구간별 확정 금액) DB 저장** — 화면에는 표시되지만 저장되지 않는다.
+- **문서 AI 추출 결과·필드 변경 이력 DB 저장** — 추출 결과는 화면 시뮬레이션으로 보여주지만 저장되지 않고, 담당자가 "문서 값 반영"을 선택해도 이력이 남지 않는다.
+- **Invoice 대조 결과 DB 저장** — 화면에서 계산은 되지만 저장되지 않는다.
+- **이의제기 챗봇의 실제 LLM 호출**(`/api/dispute-chat`, Anthropic Claude) — 라우트는 존재하지만 새 프론트가 호출하지 않는다. 정산 탭 전용 "정산 도우미"와 앱 전체 플로팅 "개별 챗봇"으로 나눴던 구조도 이번 교체로 하나(정산 탭 안 이의제기 챗봇만)로 되돌아갔다.
+- **환율·유가·뉴스 실시간 데이터**(`/api/market`, `/api/news`) — 라우트는 존재하지만 새 프론트가 호출하지 않는다. 화면 데이터는 다시 하드코딩 목업이다.
+
+> 무엇을 어떻게 다시 붙여야 하는지는 [KORAIL_LINK_백엔드_연동.md](./KORAIL_LINK_백엔드_연동.md) 참고.
 
 ---
 
-## 부록 C — 기술 스택 및 코드 구조 (이전 프로토타입 참고)
+## 부록 C — 기술 스택 및 코드 구조 (2026-08-13 프론트엔드 교체 이후 기준)
 
-> 원본: `HANDOFF.md`. 처음부터 다시 만들 때 이 스택을 그대로 재사용할지, 새로 고를지는 별도 결정 사항이다 — 여기서는 이전 프로토타입이 무엇으로 어떻게 짜여 있었는지만 있는 그대로 남긴다.
+> 원본: `HANDOFF.md`. 2026-08-13 프론트엔드 전면 교체를 반영해 갱신했다.
 
 ### 기술 스택
 
 - **[vinext](https://github.com/cloudflare/vinext)** — Cloudflare Workers 위에서 도는 Next.js App Router 스타터 (Vite 기반)
 - React 19, TypeScript, Tailwind
-- **Cloudflare D1/drizzle는 여전히 미사용.** `db/schema.ts`는 의도적으로 비어 있고, `worker/index.ts`도 최소 상태다.
-- **Supabase가 2026-08-12에 붙었다** (`app/lib/supabase.ts`). Auth(이메일 로그인·회원가입, `/login` 라우트), Postgres(`cases`/`documents`/`contracts`/`tax_invoices`/`dispute_chat_messages` 등, 마이그레이션은 `supabase/migrations/`), Storage(`case-documents` 버킷)를 이 파일 하나로 다룬다. Case 목록은 `listCases()`로 DB에서 불러오되, **DB가 비어 있거나 로그인 전(RLS 차단)이면 기존 목업 `initialCases`로 자동 폴백**한다 — 화면이 절대 깨지지 않도록 모든 Supabase 호출은 `.catch()`로 감싸고 실패해도 로컬 상태는 그대로 반영한다(정확히는 "best-effort 저장": 로컬 UI 갱신이 항상 우선이고, DB 저장 실패는 토스트로만 알린다). 아직 실제로는 문서 추출·시황·뉴스 등은 여전히 목업이다 — 무엇이 붙었고 무엇이 안 붙었는지는 [KORAIL_LINK_백엔드_연동.md](./KORAIL_LINK_백엔드_연동.md) 참고.
-- `.env.local`(로컬, gitignore됨)에 `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` 필요 — `.env.example` 참고. 테스트 계정은 `admin@gmail.com`/`admin@`(Supabase Auth에 미리 생성되어 있어야 함, `profiles.role='admin'`).
+- **Cloudflare D1/drizzle는 여전히 미사용.**
+- **Supabase는 붙어있지만 이전보다 훨씬 좁은 범위만 쓴다** (`app/lib/supabase.ts`). Auth(로그인)는 완전히 제거됐다. Postgres(`cases`/`documents`/`contracts`/`tax_invoices`/`dispute_chat_messages`), Storage(`case-documents` 버킷)에 대한 기본 CRUD 함수만 남아있다. Case 목록은 `listCases()`로 DB에서 불러오되, DB가 비어 있거나 조회가 실패하면 기존 목업 `initialCases`로 자동 폴백한다 — 화면이 절대 깨지지 않도록 모든 Supabase 호출은 `.catch()`로 감싸고 실패해도 로컬 상태는 그대로 반영한다(best-effort 저장). 무엇이 붙었고 무엇이 안 붙었는지는 [KORAIL_LINK_백엔드_연동.md](./KORAIL_LINK_백엔드_연동.md) 참고.
+- `.env.local`(로컬, gitignore됨)에 `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` 필요 — `.env.example` 참고.
 
 ### 실행 방법
 
@@ -510,37 +521,45 @@ MVP에서는 현재 구간별 Cost Ledger 항목을 기준으로 매칭하고, B
 npm install
 npm run dev      # 개발 서버 (기본 포트 3000, 같은 프로젝트 디렉토리에서 두 개 동시 실행 불가)
 npm run build    # 프로덕션 빌드
-npx tsc --noEmit # 타입체크 (db/worker 쪽 Cloudflare 타입 에러 몇 개는 원래 있음 — app/ 관련 에러만 신경 쓰면 됨)
+npx tsc --noEmit # 타입체크
 ```
 
 `.env.local`이 없으면 `app/lib/supabase.ts`가 즉시 예외를 던진다(Supabase 클라이언트 생성 시점에 URL/키를 검증) — 로컬에서 처음 받으면 `.env.example`을 복사해 채울 것.
 
 ### 코드 구조
 
-거의 모든 UI가 **`app/page.tsx` 한 파일**(약 650줄, 매우 긴 한 줄짜리 함수들로 구성)에 있다. 계산 로직은 `app/lib/`에 분리되어 있다.
+거의 모든 UI가 **`app/page.tsx` 한 파일**(약 915줄, 매우 긴 한 줄짜리 함수들로 구성)에 있다. 계산 로직은 `app/lib/`에 분리되어 있다. **로그인 페이지는 없다.**
 
 ```
 app/
   page.tsx              라우팅(pushState 기반 수동 SPA 라우터) + 모든 화면 컴포넌트 + Supabase 연동 훅
   layout.tsx             루트 레이아웃 (globals.css 전역 적용)
-  login/page.tsx          /login — 유일한 진짜 Next.js 라우트(이메일 로그인·회원가입, Supabase Auth)
+  [...slug]/page.tsx      모든 하위 경로를 같은 컴포넌트로 받는 catch-all(새로고침·직접 진입 대응)
   globals.css            전역 스타일 (한 줄짜리 압축 CSS — 클래스명으로 검색해서 찾을 것)
+  api/                   Route Handler는 존재하지만 현재 page.tsx가 호출하지 않음(연결 끊김)
+    dispute-chat/route.ts       Anthropic Claude 호출
+    documents/extract/route.ts   문서 AI 추출
+    documents/draft/route.ts     화물운송장 AI 초안
+    market/route.ts              환율 등 실시간 시세
+    news/route.ts                 뉴스 수집·번역
   lib/
-    types.ts            CaseItem, CaseStatus 등 공용 타입
-    supabase.ts           Supabase 클라이언트 + Case/문서/계약/세금계산서/채팅 CRUD·Storage 함수
+    types.ts            CaseItem(단순 구조), CaseStatus 등 공용 타입
+    supabase.ts           Supabase 클라이언트 + Case/문서/계약/세금계산서/채팅 기본 CRUD(로그인 없음, 이전보다 함수 수 적음)
     quoteEngine.ts       σ 판정, 유사도 매칭, z-score 이상탐지, "KORAIL LINK 종합 지수" 계산
-    quoteDraftEngine.ts   견적서 자동생성 — 과거 유사 견적 중앙값을 routeData.ts의 구간 구성에 맞춰 구간별로 쪼갬(splitCostByStages는 계약 별첨·정산 초안과 공유)
+    quoteDraftEngine.ts   견적서 자동생성 — 과거 유사 견적 중앙값을 routeData.ts의 구간 구성에 맞춰 구간별로 쪼갬
     marketData.ts        시장 시계열(목업, 결정론적 생성) + 과거 유사 견적 풀(historicalQuotes)
-    newsData.ts          뉴스 목업 데이터 + 카테고리 타입
-    causalAnalysis.ts     이상탐지 결과 + 뉴스를 엮어 인과분석 문장 생성(결정론적 템플릿, 실제 LLM 호출 아님)
-    routeData.ts          노선(목적지)별 실제 구간 구성 — TCR 경유 여부에 따라 관련 시황 지표가 달라짐
-    contractEngine.ts     계약 특약 초안 생성(TCR 노선은 SMGS 준수·궤간환적·정책변동 조항 추가) + SMGS 근거 조항 참고 목록
-    documentEngine.ts     문서 추출 시뮬레이션 + 완전일치 대조 로직(표기 정규화 포함) + Invoice 정산 대조
-    seasonality.ts        계절성 신호(춘절·연말 성수기 등 캘린더 규칙, 시계열 아님)
-    taxInvoiceEngine.ts   세금계산서 자동 생성(Invoice 정산 대조 결과 재사용, 국제운송용역 영세율 기본)
-    disputeChatEngine.ts  이의제기 챗봇 — 실제 LLM 호출 아님, σ 판정·인과분석·Invoice 차액을 키워드 매칭으로 인용
-supabase/migrations/      Supabase SQL 마이그레이션 3개(스키마·Storage 버킷·profiles.company_name) — SQL Editor에서 순서대로 실행
+    newsData.ts / newsKeywords.ts   뉴스 목업 데이터·카테고리 타입·번역용 키워드
+    causalAnalysis.ts     이상탐지 결과 + 뉴스를 엮어 인과분석 문장 생성(결정론적 템플릿)
+    routeData.ts          노선(목적지)별 실제 구간 구성
+    contractEngine.ts     계약 특약 초안 생성 + SMGS 근거 조항 참고 목록
+    documentEngine.ts     문서 추출 시뮬레이션 + 완전일치 대조 로직 + Invoice 정산 대조
+    seasonality.ts        계절성 신호(캘린더 규칙, 시계열 아님)
+    taxInvoiceEngine.ts   세금계산서 자동 생성
+    disputeChatEngine.ts  이의제기 챗봇 — 실제 LLM 호출 아님, 규칙 기반
+supabase/migrations/      Supabase SQL 마이그레이션 7개 — SQL Editor에서 순서대로 실행(자세한 목록은 백엔드 연동 문서)
 ```
+
+**참고**: `app/components/` 디렉토리는 없다 — Sidebar/Topbar/Badge/Icon 등 UI 조각까지 전부 `page.tsx` 안에 함수 컴포넌트로 정의되어 있다.
 
 ---
 
@@ -553,7 +572,8 @@ supabase/migrations/      Supabase SQL 마이그레이션 3개(스키마·Storag
 - "능동적 알림 우선"이라는 설계 원칙이 아직 UI(벨 아이콘)만 있고 실제 트리거 로직은 없다(대시보드 홈 화면으로 대체 — 위 부록 B "지금 뭐가 진짜로 동작하고" 참고).
 - 문서 대조 표기 정규화(`normalizeValue`)는 법인 접미사·단위·컨테이너 규격(FT/피트/하이큐브)·지명 별칭까지 반영했지만, 지명 별칭은 고정 사전 방식이라 새 노선·도시가 추가되면 표를 함께 갱신해야 하고, 법인 접미사 목록에 없는 해외 법인 표기는 잡지 못한다.
 - 전자서명·세금계산서(홈택스)·이의제기 챗봇(LLM)은 전부 결정론적 시뮬레이션이다 — 실 서비스 전환 시 각각 전자서명 SDK, 국세청 API, LLM 백엔드 연동이 필요하다(부록 B의 "실제 AI 문서 추출을 붙이려면"과 같은 성격의 후속 과제, [KORAIL_LINK_백엔드_연동.md](./KORAIL_LINK_백엔드_연동.md) 참고).
-- **`/cases`, `/contracts`, `/documents`, `/settlements` 등은 실제 Next.js 라우트가 아니다.** `app/page.tsx`가 `history.pushState`로 흉내내는 수동 SPA 라우터라, 브라우저 주소창에 이 경로를 직접 치거나 새로고침하면 Next.js 서버가 404를 반환한다(정의된 페이지는 `/`뿐). 반드시 앱 안에서 링크를 클릭해 이동해야 하며, Playwright 등으로 자동화 테스트를 짤 때도 `page.goto()`가 아니라 사이드바/버튼 클릭으로 내비게이션해야 한다.
+- **`/cases`, `/contracts`, `/documents`, `/settlements` 등은 실제 Next.js 라우트가 아니다.** `app/page.tsx`가 `history.pushState`로 흉내내는 수동 SPA 라우터라, 브라우저 주소창에 이 경로를 직접 치거나 새로고침해도 `app/[...slug]/page.tsx`가 같은 컴포넌트를 그려서 화면은 유지된다(404는 아님). 다만 이런 경로들이 Next.js가 실제로 인식하는 라우트는 아니므로, 서버 사이드에서 경로별 분기가 필요한 작업(메타데이터 등)은 불가능하다.
+- **로그인 기능이 없다(2026-08-13 제거).** 모든 사용자가 항상 비로그인 상태로 동작하고, Case 등 Supabase 쓰기는 인증 세션 없이 시도된다. RLS 정책이 `auth.uid()`를 요구하는 테이블은 실제로는 저장에 실패할 가능성이 높다 — 화면상으로는 티가 안 나는데(best-effort라 로컬 상태만 반영), DB를 직접 확인하면 빈 테이블일 수 있다.
 
 ---
 
@@ -571,3 +591,4 @@ supabase/migrations/      Supabase SQL 마이그레이션 3개(스키마·Storag
 - **사이드바 조직 축은 원래 "운임 인텔리전스 vs 업무 연결"(기능 성격별 2분류)이었다가, 2026-08-12에 "리서치 vs 파이프라인"(작업 단계 순서)으로 다시 짰다.** 새로 생긴 기능들(견적서 자동생성·계약 별첨·정산 초안)이 Case 안에 묻혀서 안 보인다는 문제의식 때문 — 계약·문서·정산은 액션이 아니라 화물 운송(Case)에 속한 하위 뷰이므로 사이드바에서도 "화물 운송" 아코디언 하위로 내렸다. (이 항목은 [서비스 개요 문서 4장](./KORAIL_LINK_서비스_개요.md#화면-구조ia--리서치-vs-파이프라인)에도 반영했다.)
 - **Supabase 연동은 UI 작업과 별개 세션에서 진행되다가 2026-08-12에 병합했다.** 병합 전 버전(사이드 폴더 `KORAIL_LINK_source-main`)엔 실제 버그가 있었다 — `setCases`를 Supabase 저장 래퍼로 바꾸면서 그 래퍼가 배열만 받도록 타입을 좁혔는데, `CaseWorkspace`의 `confirm`/`confirmContract`(견적 확정·계약 확정 버튼)는 원래부터 `setCases(xs=>xs.map(...))`처럼 **업데이터 함수** 형태로 호출하고 있었다. `npx tsc --noEmit`을 돌려보면 바로 잡히는 타입 에러였는데(`Dispatch<SetStateAction<CaseItem[]>>`에 안 맞음) 원본에선 확인 없이 넘어가서, 실제로 클릭하면 저장 함수 안에서 배열 메서드를 함수에 호출하며 즉시 런타임 에러가 났을 것이다. 병합하면서 래퍼가 `CaseItem[] | ((prev)=>CaseItem[])` 둘 다 받게 고쳤다(`setCasesAndPersist`, `app/page.tsx`) — Supabase 저장 로직을 새로 짤 때 `setCases`를 감싸는 방식을 쓴다면 이 형태를 그대로 따를 것.
 - **팀원 피드백 8건 중 7건을 2026-08-12에 한 번에 반영했다**(8번 "예측" 표현은 코드에 해당 단어가 없어 서비스개요 문서만 직접 수정). 핵심 변경 셋: (1) σ를 "가격 변동률의 변동성"에서 diffPct와 같은 성격인 "가격 수준편차"로 재정의하고 판정을 절대값 기준 대칭으로 바꿨다(A-1) — 지나치게 낮은 견적도 이제 "확인 필요"로 잡힌다. (2) 견적서 자동생성의 인과관계를 뒤집었다(A-9) — 과거 중앙값을 나누던 방식에서, 구간별로 먼저 금액을 만들어 더하고 과거 데이터는 검증에만 쓰는 방식으로. (3) 세금계산서 세율을 고정 10%에서 국제운송용역 기준 영세율(세액 0원) 기본값으로 바꿨다(B-7) — 데모에서 세액이 0원으로 나오는 게 의도된 동작이다. 나머지 넷(SMGS 발행주체 단정 완화, 문서 대조 총중량 허용오차 ±0.3톤, KCI를 "부산-중국 항로 참고 벤치마크"로 톤 낮추기, 유사도 가중치에 "MVP 초기 휴리스틱" 라벨 명시)은 표현·규칙 조정으로 계산 구조 자체는 안 바뀌었다.
+- **프론트엔드를 2026-08-13에 별도로 공유받은 Figma 데모 코드로 통째로 교체했다.** 배경: 화면 디자인을 실제 Figma 시안과 최대한 동일하게 맞춰야 했는데, 기존 코드(Next.js 파일 기반 라우팅, 세분화된 Supabase 연동)의 마크업을 화면별로 일일이 이식하는 방식보다 이미 Figma 디자인대로 짜여 있는 공유 코드를 그대로 가져오는 쪽이 시각적 일치도와 속도 면에서 나았다. 대신 그 코드는 로그인이 없고 `CaseItem` 구조가 단순하며 Supabase 연동 범위가 훨씬 좁아서, 교체 직후 기준으로 계약승인·Cost Ledger 확정저장·문서 추출결과 저장·Invoice 대조저장·이의제기챗봇 LLM 호출·환율/뉴스 API 등 다수 연동이 끊겼다(부록 B 참고). **트레이드오프를 의도적으로 감수한 선택이다** — 시각적 완성도를 먼저 확보하고, 백엔드 재연동은 후속 작업으로 분리했다.
