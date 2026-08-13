@@ -106,3 +106,15 @@ export function getRoute(destination: string): RoutePath | undefined {
 export function listDestinations(): RoutePath[] {
   return Object.values(ROUTES);
 }
+
+/** "오봉 → 부산항 → 연운항 → 알마티" 형태의 표시용 노선 라벨을 stages에서 조립한다 */
+export function buildRouteLabel(route: RoutePath): string {
+  const nodes: string[] = [];
+  for (const stage of route.stages) {
+    if (!stage.name.includes('→')) continue;
+    const [from, to] = stage.name.split('→');
+    if (nodes.length === 0) nodes.push(from);
+    nodes.push(to);
+  }
+  return nodes.join(' → ');
+}

@@ -13,6 +13,7 @@ const RESEARCH_LINKS = [
 
 const CASE_TABS = [
   { segment: '', label: '개요' },
+  { segment: '/validation', label: '견적 검증' },
   { segment: '/contract', label: '계약' },
   { segment: '/documents', label: '문서' },
   { segment: '/settlement', label: '정산' },
