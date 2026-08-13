@@ -141,6 +141,25 @@ export async function upsertCase(item: CaseItem): Promise<void> {
   if (error) throw error;
 }
 
+export async function upsertContract(
+  caseId: string,
+  contract: { clauses: unknown; contractAmount: number; signStatus: string; signedAt?: string }
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('contracts')
+    .upsert(
+      {
+        case_id: caseId,
+        clauses: contract.clauses,
+        contract_amount: contract.contractAmount,
+        sign_status: contract.signStatus,
+        signed_at: contract.signedAt ?? null,
+      },
+      { onConflict: 'case_id' }
+    );
+  if (error) throw error;
+}
+
 export async function insertCaseStatusHistory(
   caseId: string,
   previousStatus: CaseStatus,

@@ -54,6 +54,29 @@ export interface CostLedgerLine {
   source: string;
 }
 
+/** 특약 근거 유형 — 출처 없는 항목을 국제규정처럼 표현하지 않는다 (B-6, 비타협 원칙 5) */
+export type ClauseBasisType = '협약' | '계약조건' | '내부기준' | 'AI 리스크 권고';
+export type ClauseStatus = 'accepted' | 'excluded' | 'modified';
+
+export interface ContractClause {
+  id: string;
+  title: string;
+  reason: string;
+  basisType: ClauseBasisType;
+  /** 실제 지식베이스에 저장된 출처가 있을 때만 채운다 */
+  basisSource?: string;
+  text: string;
+  status: ClauseStatus;
+}
+
+export type SignStatus = 'none' | 'pending' | 'signed';
+
+export interface ContractInfo {
+  clauses: ContractClause[];
+  signStatus: SignStatus;
+  signedAt?: string;
+}
+
 /**
  * 불변식: costLedger.length > 0이면
  *   price === costLedger.reduce((sum, l) => sum + l.quotedAmount, 0)
@@ -71,4 +94,5 @@ export interface CaseItem {
   createdAt: string;
   masterData: CaseMasterData;
   costLedger: CostLedgerLine[];
+  contract?: ContractInfo;
 }
