@@ -52,6 +52,7 @@ export function Sidebar() {
 
   async function handleSignOut() {
     await signOut().catch(() => {});
+    sessionStorage.removeItem('korail_guest');
     router.push('/login');
   }
 
@@ -90,10 +91,10 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-neutral-200 px-4 py-3">
-        <p className="truncate text-sm font-medium text-neutral-900">{profile?.fullName ?? email ?? '사용자'}</p>
-        <p className="truncate text-xs text-neutral-500">{profile?.companyName ?? email ?? ''}</p>
+        <p className="truncate text-sm font-medium text-neutral-900">{profile?.fullName ?? email ?? '게스트'}</p>
+        <p className="truncate text-xs text-neutral-500">{profile?.companyName ?? email ?? '로그인 없이 둘러보는 중'}</p>
         <button onClick={handleSignOut} className="mt-2 text-xs text-neutral-500 hover:text-neutral-800">
-          로그아웃
+          {email ? '로그아웃' : '로그인 화면으로'}
         </button>
       </div>
     </aside>

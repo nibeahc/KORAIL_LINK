@@ -160,6 +160,46 @@ export async function upsertContract(
   if (error) throw error;
 }
 
+export async function insertTaxInvoice(
+  caseId: string,
+  invoice: {
+    id: string;
+    issuedDate: string;
+    supplierBusinessNumber: string;
+    customerBusinessNumber: string;
+    taxType: string;
+    supplyAmount: number;
+    vatAmount: number;
+    totalAmount: number;
+  }
+): Promise<void> {
+  const { error } = await getSupabaseClient().from('tax_invoices').insert({
+    id: invoice.id,
+    case_id: caseId,
+    issued_date: invoice.issuedDate,
+    supplier_business_number: invoice.supplierBusinessNumber,
+    customer_business_number: invoice.customerBusinessNumber,
+    tax_type: invoice.taxType,
+    supply_amount: invoice.supplyAmount,
+    vat_amount: invoice.vatAmount,
+    total_amount: invoice.totalAmount,
+  });
+  if (error) throw error;
+}
+
+export async function insertDisputeChatMessage(
+  caseId: string,
+  message: { role: 'user' | 'assistant'; content: string; evidenceRef: unknown }
+): Promise<void> {
+  const { error } = await getSupabaseClient().from('dispute_chat_messages').insert({
+    case_id: caseId,
+    role: message.role,
+    content: message.content,
+    evidence_ref: message.evidenceRef,
+  });
+  if (error) throw error;
+}
+
 export async function insertCaseStatusHistory(
   caseId: string,
   previousStatus: CaseStatus,

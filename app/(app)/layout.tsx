@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { getSupabaseClient, getCurrentUser } from '../lib/supabase';
 import { Sidebar } from '../components/Sidebar';
 
+function isGuest(): boolean {
+  return typeof window !== 'undefined' && sessionStorage.getItem('korail_guest') === '1';
+}
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [checked, setChecked] = useState(false);
@@ -14,15 +18,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     let mounted = true;
     getCurrentUser().then((user) => {
       if (!mounted) return;
-      setAuthed(!!user);
+      const allowed = !!user || isGuest();
+      setAuthed(allowed);
       setChecked(true);
-      if (!user) router.replace('/login');
+      if (!allowed) router.replace('/login');
     });
     const {
       data: { subscription },
     } = getSupabaseClient().auth.onAuthStateChange((_event, session) => {
-      setAuthed(!!session?.user);
-      if (!session?.user) router.replace('/login');
+      const allowed = !!session?.user || isGuest();
+      setAuthed(allowed);
+      if (!allowed) router.replace('/login');
     });
     return () => {
       mounted = false;

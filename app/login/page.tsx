@@ -32,8 +32,21 @@ export default function LoginPage() {
     }
   }
 
+  function handleGuestStart() {
+    sessionStorage.setItem('korail_guest', '1');
+    router.push('/');
+  }
+
   return (
-    <main className="flex flex-1 items-center justify-center bg-neutral-50 px-4">
+    <main className="relative flex flex-1 items-center justify-center bg-neutral-50 px-4">
+      <button
+        type="button"
+        onClick={handleGuestStart}
+        className="absolute right-4 top-4 text-xs text-neutral-400 hover:text-neutral-600"
+      >
+        로그인 없이 시작하기 →
+      </button>
+
       <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-8 shadow-sm">
         <h1 className="text-xl font-semibold text-neutral-900">KORAIL LINK</h1>
         <p className="mt-1 text-sm text-neutral-500">

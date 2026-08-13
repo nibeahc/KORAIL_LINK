@@ -102,6 +102,38 @@ export interface CaseDocument {
   resolutions: Record<string, 'keep_current' | 'apply_document' | 'confirm_later'>;
 }
 
+/** Invoice 라인아이템 — Cost Ledger와 항목별로 대조한다 (B-5) */
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  amount: number;
+  /** Cost Ledger의 어느 구간과 매칭되는지 — 없으면 신규 항목 또는 매칭 불확실 항목 */
+  matchedStageId?: string;
+  /** matchedStageId가 없을 때: true면 자동 매칭이 불확실한 항목(매칭 확인 필요), false/undefined면 계약 미등록 신규 항목 */
+  uncertain?: boolean;
+}
+
+export interface TaxInvoice {
+  id: string;
+  issuedDate: string;
+  supplierBusinessNumber: string;
+  customerBusinessNumber: string;
+  item: string;
+  taxType: 'zero_rated' | 'standard';
+  supplyAmount: number;
+  vatAmount: number;
+  totalAmount: number;
+  createdAt: string;
+}
+
+export interface DisputeChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  evidence: string[];
+  createdAt: string;
+}
+
 /**
  * 불변식: costLedger.length > 0이면
  *   price === costLedger.reduce((sum, l) => sum + l.quotedAmount, 0)
@@ -121,4 +153,7 @@ export interface CaseItem {
   costLedger: CostLedgerLine[];
   contract?: ContractInfo;
   documents?: CaseDocument[];
+  invoiceLines?: InvoiceLineItem[];
+  taxInvoices?: TaxInvoice[];
+  disputeMessages?: DisputeChatMessage[];
 }
