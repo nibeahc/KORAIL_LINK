@@ -9,7 +9,6 @@ import { getSeasonalSignal } from '../../../lib/seasonality';
 import { buildCausalAnalysis, type CausalAnalysis } from '../../../lib/causalAnalysis';
 import { Badge } from '../../../components/Badge';
 import { Icon } from '../../../components/Icon';
-import { MarketCard } from '../../../components/MarketCard';
 import { EvidenceDrawer } from '../../../components/EvidenceDrawer';
 import { CaseHeader } from '../../../components/CaseHeader';
 import { CaseTabs } from '../../../components/CaseTabs';

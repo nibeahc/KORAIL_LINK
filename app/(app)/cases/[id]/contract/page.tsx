@@ -24,6 +24,7 @@ export default function CaseContractPage() {
   const [signStatus, setSignStatus] = useState<SignStatus>('none');
   const [signedAt, setSignedAt] = useState<string | undefined>();
   const [draftGenerated, setDraftGenerated] = useState(false);
+  const [loadedItemId, setLoadedItemId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [signing, setSigning] = useState(false);
   const [approvals, setApprovals] = useState<ContractApproval[]>([]);
@@ -32,13 +33,17 @@ export default function CaseContractPage() {
   const [approvalComment, setApprovalComment] = useState('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  useEffect(() => {
-    if (!item) return;
+  if (item && item.id !== loadedItemId) {
+    setLoadedItemId(item.id);
     setClauses(item.contract?.clauses ?? recommendClauses(item.masterData));
     setLedgerDraft(item.costLedger.map((l) => ({ ...l })));
     setSignStatus(item.contract?.signStatus ?? 'none');
     setSignedAt(item.contract?.signedAt);
     setDraftGenerated(!!item.contract);
+  }
+
+  useEffect(() => {
+    if (!item) return;
     void refreshApprovals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useCases } from '../../../../lib/state';
 import type { InvoiceLineItem } from '../../../../lib/types';
@@ -33,14 +33,14 @@ export default function CaseSettlementPage() {
   const item = cases.find((c) => c.id === params.id);
 
   const [lines, setLines] = useState<InvoiceLineItem[]>([]);
+  const [loadedItemId, setLoadedItemId] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
 
-  useEffect(() => {
-    if (!item) return;
+  if (item && item.id !== loadedItemId) {
+    setLoadedItemId(item.id);
     setLines(item.invoiceLines ?? []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item?.id]);
+  }
 
   const summary = useMemo(() => (item ? buildInvoiceSummary(item.costLedger, lines) : null), [item, lines]);
   const route = useMemo(() => (item ? getRoute(item.masterData.destination) : undefined), [item]);
