@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { classifyRelevantNews } from '../../lib/newsKeywords';
 
 export const runtime = 'nodejs';
 export const revalidate = 600;
@@ -14,7 +15,7 @@ const FEEDS: Feed[] = [
   { name: 'Maritime Executive', url: 'https://www.maritime-executive.com/rss/news', international: true },
 ];
 
-const CACHE_MS = 10 * 60 * 1000;
+const CACHE_MS = 3 * 60 * 60 * 1000;
 let cache: { expiresAt: number; articles: Article[] } | null = null;
 
 function decode(value: string) {
@@ -26,16 +27,6 @@ function tag(xml: string, name: string) {
   return match ? decode(match[1]) : '';
 }
 
-function categoryFor(text: string): NewsCategory {
-  const value = text.toLowerCase();
-  if (/brent|crude|oil|opec/.test(value)) return '유가';
-  if (/customs|tariff|sanction|regulation/.test(value)) return '통관';
-  if (/war|conflict|russia|ukraine|middle east/.test(value)) return '지정학';
-  if (/exchange|currency|dollar|yuan/.test(value)) return '환율';
-  if (/lianyungang|port congestion|port/.test(value)) return '연운항';
-  return 'TCR';
-}
-
 function parseFeed(xml: string, feed: Feed): Article[] {
   return [...xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)].slice(0, 4).flatMap((match, index) => {
     const item = match[1];
@@ -43,14 +34,17 @@ function parseFeed(xml: string, feed: Feed): Article[] {
     const url = tag(item, 'link');
     if (!title || !url) return [];
     const published = new Date(tag(item, 'pubDate') || tag(item, 'published'));
+    const summary = tag(item, 'description').slice(0, 500);
+    const category = classifyRelevantNews(`${title} ${summary}`);
+    if (!category) return [];
     return [{
       id: `rss-${feed.name}-${index}-${url}`,
       title,
-      summary: tag(item, 'description').slice(0, 500),
+      summary,
       url,
       source: feed.name,
       publishedAt: Number.isNaN(published.getTime()) ? new Date().toISOString() : published.toISOString(),
-      category: categoryFor(`${title} ${tag(item, 'description')}`),
+      category,
     }];
   });
 }
@@ -75,11 +69,17 @@ async function fetchNaver(): Promise<Article[]> {
     });
     if (!response.ok) return [];
     const body = (await response.json()) as { items?: Array<{ title: string; description: string; originallink: string; link: string; pubDate: string }> };
-    return (body.items ?? []).map((item, index) => ({
+    return (body.items ?? []).flatMap((item, index) => {
+      const title = decode(item.title);
+      const summary = decode(item.description);
+      const category = classifyRelevantNews(`${title} ${summary}`);
+      if (!category) return [];
+      return [{
       id: `naver-${index}-${item.originallink || item.link}`,
-      title: decode(item.title), summary: decode(item.description), url: item.originallink || item.link,
-      source: 'Naver News', publishedAt: new Date(item.pubDate).toISOString(), category: categoryFor(`${item.title} ${item.description}`),
-    }));
+      title, summary, url: item.originallink || item.link,
+      source: 'Naver News', publishedAt: new Date(item.pubDate).toISOString(), category,
+    }];
+    });
   } catch { return []; }
 }
 
@@ -90,14 +90,16 @@ async function translateInternational(articles: Article[]) {
     const payload = articles.map((article, index) => ({ index, title: article.title, summary: article.summary }));
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.OPENROUTER_MODEL ?? 'google/gemma-3-27b-it:free', response_format: { type: 'json_object' }, messages: [
+      body: JSON.stringify({ model: process.env.OPENROUTER_MODEL ?? 'google/gemma-3-27b-it:free', messages: [
         { role: 'system', content: 'Translate each English news title and summary into concise natural Korean. Return JSON only: {"items":[{"index":0,"title":"...","summary":"..."}]}. Do not translate names, figures, or URLs.' },
         { role: 'user', content: JSON.stringify(payload) },
       ] }),
     });
     if (!response.ok) return articles;
     const body = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const translated = JSON.parse(body.choices?.[0]?.message?.content ?? '{}') as { items?: Array<{ index: number; title: string; summary: string }> };
+    const content = body.choices?.[0]?.message?.content ?? '';
+    const json = content.match(/\{[\s\S]*\}/)?.[0] ?? '{}';
+    const translated = JSON.parse(json) as { items?: Array<{ index: number; title: string; summary: string }> };
     for (const item of translated.items ?? []) {
       if (articles[item.index]) articles[item.index] = { ...articles[item.index], title: item.title || articles[item.index].title, summary: item.summary || articles[item.index].summary };
     }
