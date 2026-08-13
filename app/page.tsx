@@ -869,7 +869,7 @@ function Settlement({item,docs,onUpload,notify,validation,goToTab}:{item:CaseIte
   {!invoice&&<section className="card doc-card">
    <div className="doc-card-head"><div><b>Invoice 대조</b>{invoiceState.fileName&&<small>{invoiceState.fileName}</small>}</div></div>
    <p className="doc-desc">실제 포워더 Invoice가 도착하면 업로드해서 위 정산 내역서와 대조하세요.</p>
-   {invoiceState.status==='idle'&&<><button type="button" className="doc-upload" onClick={()=>invoiceInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button><input ref={invoiceInputRef} id="upload-invoice-settlement" type="file" hidden accept=".pdf,.png,.jpg,.jpeg,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f);e.currentTarget.value=''}}/><small className="doc-format-note">PDF · JPG · PNG</small></>}
+   {invoiceState.status==='idle'&&<><button type="button" className="doc-upload" onClick={()=>invoiceInputRef.current?.click()}><Icon name="plus"/>파일 업로드</button><input ref={invoiceInputRef} id="upload-invoice-settlement" type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,image/*,application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)onUpload('Invoice',f);e.currentTarget.value=''}}/><small className="doc-format-note">PDF · JPG · PNG · GIF · WEBP (15MB 이하)</small></>}
    {invoiceState.status==='loading'&&<div className="doc-loading"><span className="spinner"/>AI가 Invoice에서 청구내역을 추출하고 있습니다...</div>}
   </section>}
   {invoice&&<>

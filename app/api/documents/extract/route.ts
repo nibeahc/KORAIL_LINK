@@ -10,6 +10,13 @@ const FIELDS: Record<string, string[]> = {
 };
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MIME_BY_EXTENSION: Record<string, string> = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+
+function supportedMime(file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const mime = file.type || MIME_BY_EXTENSION[extension];
+  return ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mime) ? mime : null;
+}
 
 export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -20,13 +27,14 @@ export async function POST(request: Request) {
   const documentType = String(form.get('documentType') ?? '');
   const fields = FIELDS[documentType];
   if (!(file instanceof File) || !fields) return NextResponse.json({ error: '지원하지 않는 문서 또는 요청 형식입니다.' }, { status: 400 });
-  if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) return NextResponse.json({ error: 'PDF, JPG, PNG 파일만 추출할 수 있습니다.' }, { status: 400 });
+  const mime = supportedMime(file);
+  if (!mime) return NextResponse.json({ error: 'PDF, JPG, PNG, GIF, WEBP 파일만 추출할 수 있습니다.' }, { status: 400 });
   if (file.size > MAX_FILE_BYTES) return NextResponse.json({ error: '문서 크기는 15MB 이하여야 합니다.' }, { status: 413 });
 
   const base64 = Buffer.from(await file.arrayBuffer()).toString('base64');
-  const source = file.type === 'application/pdf'
+  const source = mime === 'application/pdf'
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-    : { type: 'image', source: { type: 'base64', media_type: file.type, data: base64 } };
+    : { type: 'image', source: { type: 'base64', media_type: mime, data: base64 } };
 
   const prompt = [
     `Extract only these fields from this ${documentType} document: ${fields.join(', ')}.`,
