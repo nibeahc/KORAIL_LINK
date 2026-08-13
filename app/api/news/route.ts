@@ -84,20 +84,19 @@ async function fetchNaver(): Promise<Article[]> {
 }
 
 async function translateInternational(articles: Article[]) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || articles.length === 0) return articles;
   try {
     const payload = articles.map((article, index) => ({ index, title: article.title, summary: article.summary }));
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.OPENROUTER_MODEL ?? 'google/gemma-3-27b-it:free', messages: [
-        { role: 'system', content: 'Translate each English news title and summary into concise natural Korean. Return JSON only: {"items":[{"index":0,"title":"...","summary":"..."}]}. Do not translate names, figures, or URLs.' },
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001', max_tokens: 2000, system: 'Translate each English news title and summary into concise natural Korean. Return JSON only: {"items":[{"index":0,"title":"...","summary":"..."}]}. Do not translate names, figures, or URLs.', messages: [
         { role: 'user', content: JSON.stringify(payload) },
       ] }),
     });
     if (!response.ok) return articles;
-    const body = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = body.choices?.[0]?.message?.content ?? '';
+    const body = (await response.json()) as { content?: Array<{ type?: string; text?: string }> };
+    const content = body.content?.find((block) => block.type === 'text')?.text ?? '';
     const json = content.match(/\{[\s\S]*\}/)?.[0] ?? '{}';
     const translated = JSON.parse(json) as { items?: Array<{ index: number; title: string; summary: string }> };
     for (const item of translated.items ?? []) {
