@@ -2,8 +2,9 @@ import type { CaseItem } from './types';
 
 /**
  * DB가 비어있거나 로그인 전(RLS 차단)일 때의 폴백 데이터.
- * 알마티 건은 TCR 환적(부산항→연운항→알마티) 경유, 시안 건은 중국 내륙 직통 —
- * Phase 1의 routeData.ts 분기(TCR 경유 여부)를 처음부터 두 갈래로 검증할 수 있게 한다.
+ * 알마티·타슈켄트 건은 TCR 환적(부산항→연운항→TCR) 경유, 시안 건은 중국 내륙 직통(TCR 미경유) —
+ * routeData.ts의 usesTCR 분기를 처음부터 두 갈래로 검증할 수 있게 한다.
+ * stageId는 routeData.ts의 ROUTES[destination].stages와 그대로 맞춘다.
  */
 export const initialCases: CaseItem[] = [
   {
@@ -40,7 +41,7 @@ export const initialCases: CaseItem[] = [
     caseNumber: 'KL-2026-0002',
     shipperName: '동북물산',
     cargoType: '전자부품',
-    route: '오봉 → 만저우리 → 시안',
+    route: '오봉 → 부산항 → 연운항 → 시안',
     containerType: '40FT x 1',
     price: 1450,
     status: 'pending_validation',
@@ -58,8 +59,9 @@ export const initialCases: CaseItem[] = [
       changeHistory: [],
     },
     costLedger: [
-      { stageId: 'obong-manzhouli', stageName: '오봉→만저우리', mode: '국내철도', quotedAmount: 210, contractAmount: 210, currency: 'USD', source: '수기 입력' },
-      { stageId: 'manzhouli-xian', stageName: '만저우리→시안', mode: '중국내륙철도', quotedAmount: 1240, contractAmount: 1240, currency: 'USD', source: '수기 입력' },
+      { stageId: 'obong-busan', stageName: '오봉→부산항', mode: '국내철도', quotedAmount: 210, contractAmount: 210, currency: 'USD', source: '수기 입력' },
+      { stageId: 'busan-lianyungang', stageName: '부산항→연운항', mode: '해상운임', quotedAmount: 480, contractAmount: 480, currency: 'USD', source: '수기 입력' },
+      { stageId: 'lianyungang-xian', stageName: '연운항→시안', mode: '중국내륙철도', quotedAmount: 760, contractAmount: 760, currency: 'USD', source: '수기 입력' },
     ],
   },
   {

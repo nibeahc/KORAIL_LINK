@@ -52,6 +52,30 @@ export async function getCurrentUser() {
   return data.user;
 }
 
+export interface Profile {
+  id: string;
+  email: string | null;
+  fullName: string | null;
+  companyName: string | null;
+  role: 'admin' | 'operator' | 'member';
+}
+
+export async function getProfile(userId: string): Promise<Profile | null> {
+  const { data, error } = await getSupabaseClient()
+    .from('profiles')
+    .select('id, email, full_name, company_name, role')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    email: data.email,
+    fullName: data.full_name,
+    companyName: data.company_name,
+    role: data.role,
+  };
+}
+
 // --- Case CRUD -------------------------------------------------------------
 // cases 테이블: Case Master Data·Cost Ledger는 JSONB 컬럼(master_data/cost_ledger)으로 저장한다.
 // (백엔드_연동.md 9번, Phase 0 스펙 4-3 — "JSONB 컬럼으로 두거나 별도 테이블로 정규화" 중 JSONB를 택함)
