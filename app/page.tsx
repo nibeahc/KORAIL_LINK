@@ -227,9 +227,10 @@ export default function Home() {
   const contractCount = cases.filter(c=>c.status==='계약').length;
   const documentCount = cases.filter(c=>c.status==='문서').length;
   const settlementCount = cases.filter(c=>c.status==='정산').length;
+  const shipmentCount = cases.length;
   const displayName = '사용자';
   return <div className={`app${navCollapsed?' nav-collapsed':''}`}>
-    <Sidebar path={sidebarPath} go={go} needsAttention={needsAttention} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName}/>
+    <Sidebar path={sidebarPath} go={go} shipmentCount={shipmentCount} contractCount={contractCount} documentCount={documentCount} settlementCount={settlementCount} displayName={displayName}/>
     <div className="stage"><Topbar collapsed={navCollapsed} toggleNav={()=>setNavCollapsed(v=>!v)} go={go}/>
       <main>
         {pathBase==="/" && <Dashboard cases={cases} go={go} displayName={displayName}/>}
@@ -248,7 +249,7 @@ export default function Home() {
 // 리서치(홈·검색)와 파이프라인(견적 생성 → 화물 운송 하위에 계약·문서·정산)으로 구분.
 // 계약·문서·정산은 화물 운송(Case)에 속한 뷰라 별도 상위 항목이 아니라 화물 운송의 아코디언
 // 하위로 둔다.
-function Sidebar({path,go,needsAttention,contractCount,documentCount,settlementCount,displayName}:{path:string;go:(p:string)=>void;needsAttention:number;contractCount:number;documentCount:number;settlementCount:number;displayName:string}){
+function Sidebar({path,go,shipmentCount,contractCount,documentCount,settlementCount,displayName}:{path:string;go:(p:string)=>void;shipmentCount:number;contractCount:number;documentCount:number;settlementCount:number;displayName:string}){
  const shipmentActive = path.startsWith('/cases')||path==='/contracts'||path==='/documents'||path==='/settlements';
  // manualOpen이 null이면 현재 경로가 화물운송 계열인지에 따라 자동으로 펼침/접힘이 결정되고,
  // 사용자가 화살표를 눌러 한 번이라도 직접 토글하면 그 선택을 우선한다.
@@ -263,7 +264,7 @@ function Sidebar({path,go,needsAttention,contractCount,documentCount,settlementC
   <div className="sidebar-group"><span className="sidebar-group-label">파이프라인</span>
    <button className={path==='/cases/new'?'active':''} onClick={()=>go('/cases/new')}><Icon name="spark"/>견적 생성</button>
    <div className="sidebar-expand-row">
-    <button className={shipmentActive?'active':''} onClick={()=>{go('/cases');setManualOpen(true)}}><NavIcon name="case"/>화물 운송{needsAttention>0&&<em>{needsAttention}</em>}</button>
+    <button className={shipmentActive?'active':''} onClick={()=>{go('/cases');setManualOpen(true)}}><NavIcon name="case"/>화물 운송{shipmentCount>0&&<em>{shipmentCount}</em>}</button>
     <button type="button" className="sidebar-chev" aria-label={open?'접기':'펼치기'} onClick={()=>setManualOpen(!open)}>{open?'▴':'▾'}</button>
    </div>
    {open&&<div className="sidebar-sub">{subItems.map(([p,l,c])=><button key={p} className={path===p?'active':''} onClick={()=>go(p)}>{l}{c>0&&<em>{c}</em>}</button>)}</div>}
@@ -361,6 +362,30 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
    {label:'KCI(한중항로)',indicator:'kci',value:(kci?.latestValue??0).toLocaleString(),pct:pctLabel(kci?.changePct??0),trend:(kci?.changePct??0)>=0?'up':'down',series:marketSeries.kci},
    {label:'BRENT',indicator:'brent',value:`$${(brent?.latestValue??0).toFixed(2)}`,pct:pctLabel(brent?.changePct??0),trend:(brent?.changePct??0)>=0?'up':'down',series:marketSeries.brent},
  ];
+ const liveSeriesByIndicator:Partial<Record<(typeof markets)[number]['indicator'],MarketPoint[]>>={
+   usdKrw:liveSeries.usdKrw,
+   cnyKrw:liveSeries.cnyKrw,
+   kztUsd:liveSeries.usdKzt,
+   uzsUsd:liveSeries.usdUzs,
+   kgsUsd:liveSeries.usdKgs,
+   kcci:liveSeries.kcci,
+   kci:liveSeries.kci,
+   brent:liveSeries.brent,
+ };
+ const liveRateByIndicator:Partial<Record<(typeof markets)[number]['indicator'],number>>={
+   usdKrw:liveRates.usdKrw,cnyKrw:liveRates.cnyKrw,kztUsd:liveRates.usdKzt,
+   uzsUsd:liveRates.usdUzs,kgsUsd:liveRates.usdKgs,kcci:liveRates.kcci,
+   kci:liveRates.kci,brent:liveRates.brent,
+ };
+ const dashboardMarkets=markets.map(m=>{
+   const series=liveSeriesByIndicator[m.indicator];
+   const latest=series?.at(-1)?.value??liveRateByIndicator[m.indicator];
+   if(!Number.isFinite(latest))return m;
+   const previous=series?.at(-2)?.value;
+   const change=previous?((latest!-previous)/previous)*100:0;
+   const fraction=m.indicator==='uzsUsd'||m.indicator==='kcci'||m.indicator==='kci'?0:2;
+   return {...m,value:m.indicator==='brent'?`$${latest!.toFixed(2)}`:latest!.toLocaleString(undefined,{minimumFractionDigits:fraction,maximumFractionDigits:fraction}),pct:pctLabel(change),trend:change>=0?'up':'down' as const,series:series??m.series};
+ });
  const needsAttention=cases.filter(c=>c.status==='검토 필요').length;
  const processed=cases.filter(c=>c.status==='견적 확정'||c.status==='계약'||c.status==='문서'||c.status==='정산').length;
  const contractPending=cases.filter(c=>c.status==='계약').length;
@@ -416,7 +441,7 @@ function Dashboard({cases,go,displayName}:{cases:CaseItem[];go:(p:string)=>void;
   <button className="quick-card" onClick={()=>go('/settlements')}><b>정산 {settlementPending}건 대기</b><span>AI 생성 내역 대조 및 오류 검증</span></button>
  </div>
  <h2 className="dashboard-label">환율</h2>
- <div className="market-strip">{markets.map((m,i)=><button className="market" key={m.label} onClick={()=>setDrawer({title:INDICATOR_LABELS[m.indicator],indicator:m.indicator})}><span>{m.label}</span><b>{m.value}</b><em className={m.trend}>{m.pct}</em>{m.series?<TrendChart series={m.series} height={25}/>:<svg viewBox="0 0 72 25"><polyline points={i%2?"0,7 12,10 24,8 36,16 48,14 60,20 72,18":"0,19 12,16 24,18 36,10 48,13 60,6 72,8"}/></svg>}</button>)}</div>
+ <div className="market-strip">{dashboardMarkets.map((m,i)=><button className="market" key={m.label} onClick={()=>setDrawer({title:INDICATOR_LABELS[m.indicator],indicator:m.indicator})}><span>{m.label}</span><b>{m.value}</b><em className={m.trend}>{m.pct}</em>{m.series?<TrendChart series={m.series} height={25}/>:<svg viewBox="0 0 72 25"><polyline points={i%2?"0,7 12,10 24,8 36,16 48,14 60,20 72,18":"0,19 12,16 24,18 36,10 48,13 60,6 72,8"}/></svg>}</button>)}</div>
  <h2 className="dashboard-label">운송 현황</h2>
  <div className="kpi-row">
   <div className="stat-mini"><span>TCR 환적 경유 노선</span><b>{tcrCount}<em>건</em></b></div>
